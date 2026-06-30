@@ -27,7 +27,8 @@ const state = {
   status: [],         // aus View article_status
   purchases: [],      // eigene Käufe (mit Artikelname)
   view: 'overview',
-  pkgParcel: null     // id des in der Päckli-Ansicht gewählten Päckli-Typs
+  pkgParcel: null,    // id des in der Päckli-Ansicht gewählten Päckli-Typs
+  adminParcel: null   // id des im Admin gewählten Päckli-Typs (unabhängig)
 };
 
 // Menge eines Artikels in einem bestimmten Päckli-Typ (0, falls nicht enthalten).
@@ -210,9 +211,12 @@ async function loadData() {
   state.status = status.data || [];
   state.purchases = purchases.data || [];
 
-  // gewähltes Päckli für die Päckli-Ansicht initialisieren / gültig halten.
+  // gewähltes Päckli (Päckli-Ansicht & Admin) initialisieren / gültig halten.
   if (!state.parcels.some((p) => p.id === state.pkgParcel)) {
     state.pkgParcel = state.parcels[0]?.id || null;
+  }
+  if (!state.parcels.some((p) => p.id === state.adminParcel)) {
+    state.adminParcel = state.parcels[0]?.id || null;
   }
 }
 
@@ -406,35 +410,64 @@ function renderAdmin() {
            data-parcel-goal="${p.id}" value="${p.number}">`).join('');
   el('goal-date').value = state.campaign.target_date || '';
 
-  // Neuer Artikel: ein Mengen-Feld je Päckli-Typ.
-  el('new-parcels').innerHTML = state.parcels.map((p) => `
-    <div>
-      <label>pro ${esc(p.abbreviation)}</label>
-      <input type="number" min="0" step="1" value="0" inputmode="numeric" data-new-parcel="${p.id}">
-    </div>`).join('');
+  renderAdminContent();
+}
 
-  el('admin-articles').innerHTML = state.articles.map((a) => `
-    <div class="item" data-row="${a.id}">
+function setAdminParcel(id) {
+  state.adminParcel = id;
+  renderAdminContent();   // nur Inhalt neu rendern (Ziel-Eingaben bleiben erhalten)
+}
+
+// Editierbare Päckli-Ansicht im Admin: Umschalter + Artikel des gewählten Päcklis.
+function renderAdminContent() {
+  // Umschalter je Päckli-Typ (gleiche Optik wie Päckli-Tab).
+  el('admin-pkg-toggle').innerHTML = state.parcels.map((p) => `
+    <button class="pkg-btn ${p.id === state.adminParcel ? 'active' : ''}" data-parcel="${p.id}">
+      ${esc(p.name)}
+    </button>`).join('');
+  $$('#admin-pkg-toggle .pkg-btn').forEach((b) =>
+    b.addEventListener('click', () => setAdminParcel(b.dataset.parcel)));
+
+  const parcel = state.parcels.find((p) => p.id === state.adminParcel);
+  el('new-hint').textContent = parcel ? `Neuer Artikel für: ${parcel.name}` : '';
+
+  if (!parcel) {
+    el('admin-content').innerHTML = '<p class="empty">Noch keine Päckli-Typen angelegt.</p>';
+    return;
+  }
+
+  // Artikel mit Eintrag im gewählten Päckli (wie renderPackages), editierbar.
+  const items = state.content
+    .filter((c) => c.parcel_id === parcel.id)
+    .map((c) => ({ article: state.articles.find((a) => a.id === c.article_id), qty: c.quantity }))
+    .filter((x) => x.article)
+    .sort((a, b) => a.article.sort_order - b.article.sort_order);
+
+  if (!items.length) {
+    el('admin-content').innerHTML = '<p class="empty">Noch keine Artikel in diesem Päckli.</p>';
+    return;
+  }
+
+  el('admin-content').innerHTML = items.map((x) => `
+    <div class="item" data-row="${x.article.id}">
       <label>Name</label>
-      <input type="text" data-f="name" value="${esc(a.name)}">
-      <div class="row">
-        ${state.parcels.map((p) => `
-          <div>
-            <label>pro ${esc(p.abbreviation)}</label>
-            <input type="number" min="0" step="1" data-parcel="${p.id}" value="${contentQty(p.id, a.id)}">
-          </div>`).join('')}
-      </div>
+      <input type="text" data-f="name" value="${esc(x.article.name)}">
+      <label>Menge (${esc(parcel.abbreviation)})</label>
+      <input type="number" min="0" step="1" inputmode="numeric" data-parcel="${parcel.id}" value="${x.qty}">
       <label>Notiz</label>
-      <input type="text" data-f="notes" value="${esc(a.notes || '')}">
+      <input type="text" data-f="notes" value="${esc(x.article.notes || '')}">
       <div class="row-actions">
-        <button class="secondary" data-save="${a.id}">Speichern</button>
-        <button class="ghost" data-delart="${a.id}">Löschen</button>
+        <button class="secondary" data-save="${x.article.id}">Speichern</button>
+        <button class="ghost" data-remove="${x.article.id}">Aus Päckli entfernen</button>
+        <button class="ghost" data-delart="${x.article.id}">Artikel löschen</button>
       </div>
     </div>`).join('');
 
-  $$('#admin-articles [data-save]').forEach((b) =>
+  $$('#admin-content [data-save]').forEach((b) =>
     b.addEventListener('click', () => saveArticle(b.dataset.save)));
-  $$('#admin-articles [data-delart]').forEach((b) =>
+  $$('#admin-content [data-remove]').forEach((b) =>
+    b.addEventListener('click', () => removeFromParcel(b.dataset.remove)));
+  $$('#admin-content [data-delart]').forEach((b) =>
     b.addEventListener('click', () => deleteArticle(b.dataset.delart)));
 }
 
@@ -497,6 +530,15 @@ async function saveArticle(id) {
   setTimeout(() => { btn.textContent = old; }, 1200);
 }
 
+// Artikel nur aus dem aktuell gewählten Päckli entfernen (Artikel bleibt bestehen).
+async function removeFromParcel(id) {
+  if (!confirm('Artikel aus diesem Päckli entfernen?')) return;
+  const { error } = await db.from('parcel_content').delete()
+    .eq('parcel_id', state.adminParcel).eq('article_id', id);
+  if (error) { alert('Fehler: ' + error.message); return; }
+  await reload();
+}
+
 async function deleteArticle(id) {
   if (!confirm('Artikel inkl. aller zugehörigen Käufe löschen?')) return;
   const { error } = await db.from('articles').delete().eq('id', id);
@@ -507,27 +549,35 @@ async function deleteArticle(id) {
 async function addArticle() {
   const msg = el('new-msg');
   const name = el('new-name').value.trim();
+  const qty = parseInt(el('new-qty').value, 10) || 0;
   if (!name) { msg.className = 'muted err'; msg.textContent = 'Name fehlt.'; return; }
-  const maxOrder = state.articles.reduce((m, a) => Math.max(m, a.sort_order), 0);
-  const { data, error } = await db.from('articles').insert({
-    name,
-    notes: el('new-notes').value.trim() || null,
-    sort_order: maxOrder + 10
-  }).select().single();
-  if (error) { msg.className = 'muted err'; msg.textContent = 'Fehler: ' + error.message; return; }
+  if (qty < 1) { msg.className = 'muted err'; msg.textContent = 'Menge muss mindestens 1 sein.'; return; }
+  if (!state.adminParcel) { msg.className = 'muted err'; msg.textContent = 'Kein Päckli gewählt.'; return; }
 
-  // Mengen je Päckli für den neuen Artikel anlegen (nur > 0).
-  const rows = $$('#new-parcels [data-new-parcel]')
-    .map((inp) => ({ parcel_id: inp.dataset.newParcel, article_id: data.id, quantity: parseInt(inp.value, 10) || 0 }))
-    .filter((r) => r.quantity > 0);
-  if (rows.length) {
-    const { error: cErr } = await db.from('parcel_content').insert(rows);
-    if (cErr) { msg.className = 'muted err'; msg.textContent = 'Fehler: ' + cErr.message; return; }
+  // Artikel mit gleichem Namen wiederverwenden (verhindert Duplikate, z.B. Biskuits
+  // in beiden Päckli), sonst neu anlegen.
+  let article = state.articles.find(
+    (a) => a.name.trim().toLowerCase() === name.toLowerCase());
+  if (!article) {
+    const maxOrder = state.articles.reduce((m, a) => Math.max(m, a.sort_order), 0);
+    const { data, error } = await db.from('articles').insert({
+      name,
+      notes: el('new-notes').value.trim() || null,
+      sort_order: maxOrder + 10
+    }).select().single();
+    if (error) { msg.className = 'muted err'; msg.textContent = 'Fehler: ' + error.message; return; }
+    article = data;
   }
+
+  // Zuordnung zum gewählten Päckli anlegen/aktualisieren.
+  const { error: cErr } = await db.from('parcel_content').upsert(
+    { parcel_id: state.adminParcel, article_id: article.id, quantity: qty },
+    { onConflict: 'parcel_id,article_id' });
+  if (cErr) { msg.className = 'muted err'; msg.textContent = 'Fehler: ' + cErr.message; return; }
 
   el('new-name').value = '';
   el('new-notes').value = '';
-  $$('#new-parcels [data-new-parcel]').forEach((inp) => { inp.value = '0'; });
+  el('new-qty').value = '1';
   msg.className = 'muted ok';
   msg.textContent = 'Hinzugefügt ✓';
   await reload();

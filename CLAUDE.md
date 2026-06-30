@@ -61,8 +61,10 @@ paeckli/
 
 `overview` (Einkaufsstand mit Fortschrittsbalken), `buy` (Kauf eintragen),
 `mine` (eigene Käufe + löschen), `packages` (Päckli-Zusammensetzung je `parcel`
-aus `parcel_content`, Toggle dynamisch je Päckli-Typ), `admin` (Artikel- &
-Ziel-CRUD; Mengen je Päckli direkt in den Artikel-Zeilen).
+aus `parcel_content`, Toggle dynamisch je Päckli-Typ), `admin` (Ziele; darunter
+dieselbe Päckli-Darstellung wie `packages`, aber editierbar: Menge/Name/Notiz
+ändern, „Aus Päckli entfernen" = nur `parcel_content`-Zeile, „Artikel löschen" =
+ganzer Artikel; unten neuer Artikel fürs gewählte Päckli, Reuse-by-Name).
 
 ## State-Objekt
 
