@@ -80,6 +80,23 @@ const state = {
 
 Merge-Richtung: `dev → main`.
 
+## Deployment-Workflow
+
+Es wird **nur `main`** deployed. Vor einem Deployment immer:
+
+1. `dev` nach `main` mergen.
+2. `main` auf GitHub deployen (GitHub Pages).
+3. `dev` wieder zum aktuellen Branch machen.
+
+```bash
+git checkout main && git merge dev   # 1. mergen
+git push origin main                 # 2. deployen (GitHub Pages)
+git checkout dev                     # 3. zurück auf dev
+```
+
+Entwickelt und getestet wird also immer auf `dev`; `main` bekommt nur fertige,
+deploybare Stände.
+
 ## Konventionen
 
 - Sprache: Code Englisch, UI-Texte Deutsch (Schweizer Schreibweise: „ss" statt „ß").
