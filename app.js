@@ -197,6 +197,12 @@ async function loadData() {
       .eq('user_id', state.profile.id)
       .order('created_at', { ascending: false })
   ]);
+  // Query-Fehler sichtbar machen (sonst still als leere Liste verschluckt).
+  const results = { campaign, parcels, articles, content, status, purchases };
+  for (const [key, res] of Object.entries(results)) {
+    if (res.error) console.error(`loadData: ${key} ->`, res.error);
+  }
+
   state.campaign = campaign.data || {};
   state.parcels = parcels.data || [];
   state.articles = articles.data || [];
