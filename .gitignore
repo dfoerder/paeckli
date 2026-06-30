@@ -1,6 +1,5 @@
-# Lokale Supabase-Zugangsdaten – nicht committen.
-# (Für GitHub-Pages-Deployment ggf. config.js doch einchecken; siehe README.)
-config.js
+# Supabase-Zugangsdaten: config.js wird fürs Deployment mit-committet.
+# (anon-Key ist öffentlich; Schutz läuft über Row Level Security.)
 
 .DS_Store
 node_modules/
