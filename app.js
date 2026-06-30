@@ -1,0 +1,471 @@
+'use strict';
+
+/* ============================================================
+ *  Weihnachtspäckli-Aktion – App-Logik
+ *  Vanilla JS, kein Build-Step. Backend: Supabase.
+ * ============================================================ */
+
+// ---------- Supabase-Client ----------
+const cfg = window.APP_CONFIG || {};
+const configured =
+  cfg.SUPABASE_URL &&
+  cfg.SUPABASE_ANON_KEY &&
+  !cfg.SUPABASE_URL.includes('DEIN-PROJEKT');
+
+let db = null;
+if (configured && window.supabase) {
+  db = window.supabase.createClient(cfg.SUPABASE_URL, cfg.SUPABASE_ANON_KEY);
+}
+
+// ---------- Zustand ----------
+const state = {
+  profile: null,      // { id, name, is_admin }
+  campaign: null,     // { target_adult, target_kid, title }
+  articles: [],       // [{ id, name, qty_adult, qty_kid, ... }]
+  status: [],         // aus View article_status
+  purchases: [],      // eigene Käufe (mit Artikelname)
+  view: 'overview',
+  pkgKind: 'adult'
+};
+
+// ---------- Kurzhelfer ----------
+const $ = (sel) => document.querySelector(sel);
+const $$ = (sel) => Array.from(document.querySelectorAll(sel));
+const el = (id) => document.getElementById(id);
+const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) =>
+  ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+
+function show(id) { el(id)?.classList.remove('hidden'); }
+function hide(id) { el(id)?.classList.add('hidden'); }
+
+function showView(name) {
+  state.view = name;
+  $$('.view').forEach((v) => v.classList.add('hidden'));
+  show('view-' + name);
+  $$('#tabs .tab').forEach((t) =>
+    t.classList.toggle('active', t.dataset.view === name));
+  if (name === 'overview') renderOverview();
+  if (name === 'buy') renderBuyOptions();
+  if (name === 'mine') renderMine();
+  if (name === 'packages') renderPackages();
+  if (name === 'admin') renderAdmin();
+}
+
+// ============================================================
+//  Auth-Fluss
+// ============================================================
+async function init() {
+  if (!configured || !db) {
+    show('config-warning');
+    return;
+  }
+
+  // Reagiert auf Login/Logout (auch nach Magic-Link-Rückkehr).
+  db.auth.onAuthStateChange((_event, session) => {
+    handleSession(session);
+  });
+
+  const { data } = await db.auth.getSession();
+  handleSession(data.session);
+}
+
+async function handleSession(session) {
+  if (!session) {
+    showLoggedOut();
+    return;
+  }
+  // Profil laden – oder Onboarding, falls noch keins existiert.
+  const { data: profile } = await db
+    .from('profiles')
+    .select('*')
+    .eq('id', session.user.id)
+    .maybeSingle();
+
+  if (!profile) {
+    hideAll();
+    show('view-onboard');
+    el('onboard-name').focus();
+    return;
+  }
+
+  state.profile = profile;
+  await loadData();
+  showLoggedIn();
+}
+
+function hideAll() {
+  hide('view-login');
+  hide('view-onboard');
+  hide('tabs');
+  $$('.view').forEach((v) => v.classList.add('hidden'));
+  hide('user-bar');
+}
+
+function showLoggedOut() {
+  state.profile = null;
+  hideAll();
+  show('view-login');
+}
+
+function showLoggedIn() {
+  hideAll();
+  el('user-name').textContent = state.profile.name;
+  show('user-bar');
+  show('tabs');
+  $$('.admin-only').forEach((e) =>
+    e.classList.toggle('hidden', !state.profile.is_admin));
+  showView('overview');
+}
+
+// ---------- Login per Magic-Link ----------
+async function sendMagicLink() {
+  const email = el('login-email').value.trim();
+  const msg = el('login-msg');
+  if (!email) { msg.textContent = 'Bitte E-Mail eingeben.'; return; }
+
+  el('login-btn').disabled = true;
+  msg.className = 'muted';
+  msg.textContent = 'Sende Link …';
+
+  const { error } = await db.auth.signInWithOtp({
+    email,
+    options: { emailRedirectTo: window.location.href.split('#')[0] }
+  });
+
+  el('login-btn').disabled = false;
+  if (error) {
+    msg.className = 'muted err';
+    msg.textContent = 'Fehler: ' + error.message;
+  } else {
+    msg.className = 'muted ok';
+    msg.textContent = 'Link gesendet! Bitte E-Mail-Postfach prüfen.';
+  }
+}
+
+// ---------- Erstanmeldung: Name speichern ----------
+async function saveOnboard() {
+  const name = el('onboard-name').value.trim();
+  const msg = el('onboard-msg');
+  if (!name) { msg.textContent = 'Bitte Namen eingeben.'; return; }
+
+  const { data: { user } } = await db.auth.getUser();
+  el('onboard-btn').disabled = true;
+
+  const { data, error } = await db
+    .from('profiles')
+    .insert({ id: user.id, name })
+    .select()
+    .single();
+
+  el('onboard-btn').disabled = false;
+  if (error) {
+    msg.className = 'muted err';
+    msg.textContent = 'Fehler: ' + error.message;
+    return;
+  }
+  state.profile = data;
+  await loadData();
+  showLoggedIn();
+}
+
+async function logout() {
+  await db.auth.signOut();
+  showLoggedOut();
+}
+
+// ============================================================
+//  Daten laden
+// ============================================================
+async function loadData() {
+  const [campaign, articles, status, purchases] = await Promise.all([
+    db.from('campaign').select('*').eq('id', 1).single(),
+    db.from('articles').select('*').order('sort_order'),
+    db.from('article_status').select('*').order('sort_order'),
+    db.from('purchases')
+      .select('*, articles(name)')
+      .eq('user_id', state.profile.id)
+      .order('created_at', { ascending: false })
+  ]);
+  state.campaign = campaign.data || { target_adult: 50, target_kid: 100 };
+  state.articles = articles.data || [];
+  state.status = status.data || [];
+  state.purchases = purchases.data || [];
+}
+
+async function reload() {
+  await loadData();
+  showView(state.view);
+}
+
+// ============================================================
+//  Ansicht: Übersicht (Einkaufsstand)
+// ============================================================
+function deadlineBanner() {
+  const d = state.campaign.target_date;
+  if (!d) return '';
+  const today = new Date(); today.setHours(0, 0, 0, 0);
+  const target = new Date(d + 'T00:00:00');
+  const days = Math.round((target - today) / 86400000);
+  const ds = target.toLocaleDateString('de-CH', { day: 'numeric', month: 'long', year: 'numeric' });
+  let txt, cls;
+  if (days > 0) { txt = `Noch ${days} Tag${days === 1 ? '' : 'e'} bis ${ds}`; cls = 'ok'; }
+  else if (days === 0) { txt = `Stichtag ist heute (${ds})!`; cls = 'need'; }
+  else { txt = `Stichtag ${ds} überschritten`; cls = 'need'; }
+  return `<div class="deadline ${cls}">⏰ ${txt}</div>`;
+}
+
+function renderOverview() {
+  const list = state.status;
+  const totalNeeded = list.reduce((s, a) => s + a.total_needed, 0);
+  const totalBought = list.reduce((s, a) => s + Math.min(a.bought, a.total_needed), 0);
+  const complete = list.filter((a) => a.total_needed > 0 && a.bought >= a.total_needed).length;
+  const counted = list.filter((a) => a.total_needed > 0).length;
+  const pct = totalNeeded ? Math.round((totalBought / totalNeeded) * 100) : 0;
+
+  el('campaign-summary').innerHTML = `
+    <div class="stat"><div class="num">${pct}%</div><div class="lbl">gesamt</div></div>
+    <div class="stat"><div class="num">${complete}/${counted}</div><div class="lbl">Artikel komplett</div></div>
+    <div class="stat"><div class="num">${state.campaign.target_adult}+${state.campaign.target_kid}</div><div class="lbl">Päckli-Ziel (E+K)</div></div>
+  `;
+
+  const banner = deadlineBanner();
+
+  if (!list.length) {
+    el('overview-list').innerHTML = banner + '<p class="empty">Noch keine Artikel angelegt.</p>';
+    return;
+  }
+
+  el('overview-list').innerHTML = banner + list.map((a) => {
+    const done = a.total_needed > 0 && a.bought >= a.total_needed;
+    const pctItem = a.total_needed ? Math.min(100, Math.round((a.bought / a.total_needed) * 100)) : 100;
+    const pill = done
+      ? '<span class="pill ok">genug</span>'
+      : `<span class="pill need">noch ${a.still_needed}</span>`;
+    return `
+      <div class="item ${done ? 'complete' : 'missing'}">
+        <div class="head">
+          <span class="name">${esc(a.name)}</span>
+          <span class="count"><span class="${done ? 'done' : ''}">${a.bought}</span> / ${a.total_needed}</span>
+        </div>
+        <div class="bar"><span style="width:${pctItem}%"></span></div>
+        <div class="sub">${pill}${a.donor_note ? ' · ' + esc(a.donor_note) : ''}</div>
+      </div>`;
+  }).join('');
+}
+
+// ============================================================
+//  Ansicht: Kauf eintragen
+// ============================================================
+function renderBuyOptions() {
+  el('buy-article').innerHTML = state.articles
+    .map((a) => `<option value="${a.id}">${esc(a.name)}</option>`)
+    .join('');
+}
+
+async function submitBuy() {
+  const article_id = el('buy-article').value;
+  const quantity = parseInt(el('buy-qty').value, 10);
+  const note = el('buy-note').value.trim() || null;
+  const msg = el('buy-msg');
+
+  if (!article_id) { msg.textContent = 'Bitte Artikel wählen.'; return; }
+  if (!quantity || quantity < 1) { msg.className = 'muted err'; msg.textContent = 'Anzahl muss mindestens 1 sein.'; return; }
+
+  el('buy-btn').disabled = true;
+  const { error } = await db.from('purchases').insert({
+    article_id, quantity, note, user_id: state.profile.id
+  });
+  el('buy-btn').disabled = false;
+
+  if (error) {
+    msg.className = 'muted err';
+    msg.textContent = 'Fehler: ' + error.message;
+    return;
+  }
+  msg.className = 'muted ok';
+  msg.textContent = 'Eingetragen ✓';
+  el('buy-qty').value = '1';
+  el('buy-note').value = '';
+  await loadData();
+}
+
+// ============================================================
+//  Ansicht: Meine Käufe
+// ============================================================
+function renderMine() {
+  if (!state.purchases.length) {
+    el('mine-list').innerHTML = '<p class="empty">Du hast noch nichts eingetragen.</p>';
+    return;
+  }
+  el('mine-list').innerHTML = state.purchases.map((p) => {
+    const date = new Date(p.created_at).toLocaleDateString('de-CH');
+    return `
+      <div class="item">
+        <div class="head">
+          <span class="name">${esc(p.articles?.name || 'Artikel')}</span>
+          <span class="count">${p.quantity} Stk.</span>
+        </div>
+        <div class="sub">${date}${p.note ? ' · ' + esc(p.note) : ''}</div>
+        <div class="row-actions">
+          <button class="ghost" data-del="${p.id}">Löschen</button>
+        </div>
+      </div>`;
+  }).join('');
+
+  $$('#mine-list [data-del]').forEach((b) =>
+    b.addEventListener('click', () => deletePurchase(b.dataset.del)));
+}
+
+async function deletePurchase(id) {
+  if (!confirm('Diesen Kauf löschen?')) return;
+  const { error } = await db.from('purchases').delete().eq('id', id);
+  if (error) { alert('Fehler: ' + error.message); return; }
+  await reload();
+}
+
+// ============================================================
+//  Ansicht: Päckli-Zusammensetzung
+// ============================================================
+function setPkgKind(kind) {
+  state.pkgKind = kind;
+  $$('.pkg-btn').forEach((b) => b.classList.toggle('active', b.dataset.kind === kind));
+  renderPackages();
+}
+
+function renderPackages() {
+  const field = state.pkgKind === 'adult' ? 'qty_adult' : 'qty_kid';
+  const items = state.articles.filter((a) => a[field] > 0);
+  const targetLabel = state.pkgKind === 'adult'
+    ? `${state.campaign.target_adult} Erwachsenenpäckli`
+    : `${state.campaign.target_kid} Kinderpäckli`;
+
+  if (!items.length) {
+    el('packages-list').innerHTML = '<p class="empty">Keine Artikel zugeordnet.</p>';
+    return;
+  }
+  el('packages-list').innerHTML = `
+    <p class="muted" style="margin:0 4px 10px">Inhalt eines Päcklis · Ziel: ${targetLabel}</p>
+    ${items.map((a) => `
+      <div class="item">
+        <div class="head">
+          <span class="name">${esc(a.name)}</span>
+          <span class="count">${a[field]}×</span>
+        </div>
+      </div>`).join('')}`;
+}
+
+// ============================================================
+//  Ansicht: Admin
+// ============================================================
+function renderAdmin() {
+  el('goal-adult').value = state.campaign.target_adult;
+  el('goal-kid').value = state.campaign.target_kid;
+  el('goal-date').value = state.campaign.target_date || '';
+
+  el('admin-articles').innerHTML = state.articles.map((a) => `
+    <div class="item" data-row="${a.id}">
+      <label>Name</label>
+      <input type="text" data-f="name" value="${esc(a.name)}">
+      <div class="row">
+        <div><label>pro E</label><input type="number" min="0" data-f="qty_adult" value="${a.qty_adult}"></div>
+        <div><label>pro K</label><input type="number" min="0" data-f="qty_kid" value="${a.qty_kid}"></div>
+      </div>
+      <label>Spender / Notiz</label>
+      <input type="text" data-f="donor_note" value="${esc(a.donor_note || '')}">
+      <div class="row-actions">
+        <button class="secondary" data-save="${a.id}">Speichern</button>
+        <button class="ghost" data-delart="${a.id}">Löschen</button>
+      </div>
+    </div>`).join('');
+
+  $$('#admin-articles [data-save]').forEach((b) =>
+    b.addEventListener('click', () => saveArticle(b.dataset.save)));
+  $$('#admin-articles [data-delart]').forEach((b) =>
+    b.addEventListener('click', () => deleteArticle(b.dataset.delart)));
+}
+
+async function saveGoals() {
+  const msg = el('goal-msg');
+  const { error } = await db.from('campaign').update({
+    target_adult: parseInt(el('goal-adult').value, 10) || 0,
+    target_kid: parseInt(el('goal-kid').value, 10) || 0,
+    target_date: el('goal-date').value || null
+  }).eq('id', 1);
+  if (error) { msg.className = 'muted err'; msg.textContent = 'Fehler: ' + error.message; return; }
+  msg.className = 'muted ok';
+  msg.textContent = 'Gespeichert ✓';
+  await loadData();
+}
+
+async function saveArticle(id) {
+  const row = $(`[data-row="${id}"]`);
+  const get = (f) => row.querySelector(`[data-f="${f}"]`).value;
+  const { error } = await db.from('articles').update({
+    name: get('name').trim(),
+    qty_adult: parseInt(get('qty_adult'), 10) || 0,
+    qty_kid: parseInt(get('qty_kid'), 10) || 0,
+    donor_note: get('donor_note').trim() || null
+  }).eq('id', id);
+  if (error) { alert('Fehler: ' + error.message); return; }
+  await loadData();
+  // kurze Bestätigung
+  const btn = row.querySelector('[data-save]');
+  const old = btn.textContent; btn.textContent = 'Gespeichert ✓';
+  setTimeout(() => { btn.textContent = old; }, 1200);
+}
+
+async function deleteArticle(id) {
+  if (!confirm('Artikel inkl. aller zugehörigen Käufe löschen?')) return;
+  const { error } = await db.from('articles').delete().eq('id', id);
+  if (error) { alert('Fehler: ' + error.message); return; }
+  await reload();
+}
+
+async function addArticle() {
+  const msg = el('new-msg');
+  const name = el('new-name').value.trim();
+  if (!name) { msg.className = 'muted err'; msg.textContent = 'Name fehlt.'; return; }
+  const maxOrder = state.articles.reduce((m, a) => Math.max(m, a.sort_order), 0);
+  const { error } = await db.from('articles').insert({
+    name,
+    qty_adult: parseInt(el('new-adult').value, 10) || 0,
+    qty_kid: parseInt(el('new-kid').value, 10) || 0,
+    donor_note: el('new-donor').value.trim() || null,
+    sort_order: maxOrder + 10
+  });
+  if (error) { msg.className = 'muted err'; msg.textContent = 'Fehler: ' + error.message; return; }
+  el('new-name').value = '';
+  el('new-adult').value = '0';
+  el('new-kid').value = '0';
+  el('new-donor').value = '';
+  msg.className = 'muted ok';
+  msg.textContent = 'Hinzugefügt ✓';
+  await reload();
+}
+
+// ============================================================
+//  Event-Verdrahtung
+// ============================================================
+function wireEvents() {
+  el('login-btn')?.addEventListener('click', sendMagicLink);
+  el('login-email')?.addEventListener('keydown', (e) => { if (e.key === 'Enter') sendMagicLink(); });
+  el('onboard-btn')?.addEventListener('click', saveOnboard);
+  el('logout-btn')?.addEventListener('click', logout);
+  el('buy-btn')?.addEventListener('click', submitBuy);
+  el('goal-btn')?.addEventListener('click', saveGoals);
+  el('new-btn')?.addEventListener('click', addArticle);
+
+  $$('#tabs .tab').forEach((t) =>
+    t.addEventListener('click', () => showView(t.dataset.view)));
+  $$('.pkg-btn').forEach((b) =>
+    b.addEventListener('click', () => setPkgKind(b.dataset.kind)));
+}
+
+// ---------- Service Worker ----------
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', () =>
+    navigator.serviceWorker.register('sw.js').catch(() => {}));
+}
+
+wireEvents();
+init();

@@ -1,0 +1,242 @@
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+  -webkit-tap-highlight-color: transparent;
+}
+
+:root {
+  --primary: #a4161a;       /* weihnachtliches Rot */
+  --primary-dark: #6a040f;
+  --accent: #2d6a4f;        /* Tannengrün */
+  --success: #2d6a4f;
+  --warn: #bc6c25;
+  --error: #c0392b;
+  --bg: #fbf7f2;
+  --card: #ffffff;
+  --text: #2c2c2c;
+  --text-light: #7d7d7d;
+  --border: #e7e0d7;
+  --track: #efe9e1;
+  --radius: 12px;
+  --safe-top: env(safe-area-inset-top, 0px);
+  --safe-bottom: env(safe-area-inset-bottom, 0px);
+  --safe-left: env(safe-area-inset-left, 0px);
+  --safe-right: env(safe-area-inset-right, 0px);
+}
+
+body {
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  background: var(--bg);
+  color: var(--text);
+  min-height: 100dvh;
+  display: flex;
+  justify-content: center;
+  padding-top: var(--safe-top);
+  padding-bottom: var(--safe-bottom);
+  padding-left: var(--safe-left);
+  padding-right: var(--safe-right);
+}
+
+#app {
+  width: 100%;
+  max-width: 480px;
+  padding: 16px;
+}
+
+input, button, select, textarea {
+  font-size: 16px;
+  font-family: inherit;
+}
+
+/* ---------- Header ---------- */
+header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding: 8px 0 12px;
+}
+header h1 {
+  font-size: 1.35rem;
+  color: var(--primary);
+}
+#user-bar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 0.85rem;
+  color: var(--text-light);
+}
+.link-btn {
+  background: none;
+  border: none;
+  color: var(--primary);
+  text-decoration: underline;
+  cursor: pointer;
+  padding: 4px;
+}
+
+/* ---------- Tabs ---------- */
+#tabs {
+  display: flex;
+  gap: 4px;
+  margin-bottom: 16px;
+}
+.tab {
+  flex: 1 1 0;
+  min-width: 0;
+  padding: 10px 4px;
+  min-height: 44px;
+  border: none;
+  border-radius: var(--radius);
+  background: var(--card);
+  color: var(--text-light);
+  font-weight: 600;
+  font-size: 0.82rem;
+  cursor: pointer;
+  touch-action: manipulation;
+  white-space: nowrap;
+}
+.tab.active {
+  background: var(--primary);
+  color: #fff;
+}
+
+/* ---------- Karten & Formulare ---------- */
+.card {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 16px;
+  margin-bottom: 16px;
+}
+.card h2, .card h3 { margin-bottom: 8px; }
+.view-title { margin: 4px 4px 12px; font-size: 1.1rem; }
+
+label {
+  display: block;
+  font-size: 0.85rem;
+  color: var(--text-light);
+  margin: 10px 0 4px;
+}
+input, select, textarea {
+  width: 100%;
+  padding: 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: #fff;
+}
+.row { display: flex; gap: 12px; }
+.row > div { flex: 1; }
+
+button {
+  margin-top: 14px;
+  width: 100%;
+  padding: 13px;
+  min-height: 48px;
+  border: none;
+  border-radius: var(--radius);
+  background: var(--primary);
+  color: #fff;
+  font-weight: 700;
+  cursor: pointer;
+  touch-action: manipulation;
+}
+button:active { background: var(--primary-dark); }
+button.secondary { background: var(--accent); }
+button.ghost {
+  background: transparent;
+  color: var(--primary);
+  border: 1px solid var(--border);
+}
+button:disabled { opacity: 0.5; }
+
+.muted { color: var(--text-light); font-size: 0.85rem; margin-top: 8px; }
+.muted.ok { color: var(--success); }
+.muted.err { color: var(--error); }
+.warning { border-color: var(--warn); background: #fff7ed; }
+.warning p { margin-top: 6px; font-size: 0.85rem; }
+code { background: var(--track); padding: 1px 5px; border-radius: 5px; }
+.hidden { display: none !important; }
+
+/* ---------- Übersicht / Fortschritt ---------- */
+.summary {
+  display: flex;
+  justify-content: space-around;
+  text-align: center;
+  gap: 8px;
+}
+.summary .stat { flex: 1; }
+.summary .num { font-size: 1.5rem; font-weight: 800; color: var(--primary); }
+.summary .lbl { font-size: 0.75rem; color: var(--text-light); }
+
+.item {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 12px 14px;
+  margin-bottom: 10px;
+}
+.item .head {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 8px;
+}
+.item .name { font-weight: 600; }
+.item .count { font-size: 0.85rem; color: var(--text-light); white-space: nowrap; }
+.item .count .done { color: var(--success); font-weight: 700; }
+.bar {
+  height: 8px;
+  background: var(--track);
+  border-radius: 6px;
+  margin-top: 8px;
+  overflow: hidden;
+}
+.bar > span {
+  display: block;
+  height: 100%;
+  background: var(--accent);
+  border-radius: 6px;
+  transition: width .3s;
+}
+.item.complete { border-color: var(--success); }
+.item.missing .bar > span { background: var(--warn); }
+.item .sub { font-size: 0.78rem; color: var(--text-light); margin-top: 6px; }
+.pill {
+  display: inline-block;
+  font-size: 0.7rem;
+  padding: 2px 8px;
+  border-radius: 999px;
+  font-weight: 700;
+}
+.pill.ok  { background: #e8f3ee; color: var(--success); }
+.pill.need{ background: #fdf0e3; color: var(--warn); }
+
+/* ---------- Listen-Einträge mit Aktionen ---------- */
+.row-actions { display: flex; gap: 8px; margin-top: 10px; }
+.row-actions button { margin-top: 0; padding: 8px; font-size: 0.85rem; }
+
+/* ---------- Päckli-Toggle ---------- */
+.pkg-toggle { display: flex; gap: 4px; margin-bottom: 14px; }
+.pkg-btn {
+  flex: 1; margin-top: 0;
+  background: var(--card); color: var(--text-light);
+  border: 1px solid var(--border);
+}
+.pkg-btn.active { background: var(--accent); color: #fff; border-color: var(--accent); }
+
+.deadline {
+  text-align: center;
+  font-weight: 700;
+  font-size: 0.9rem;
+  padding: 10px 12px;
+  border-radius: var(--radius);
+  margin-bottom: 12px;
+}
+.deadline.ok   { background: #e8f3ee; color: var(--success); }
+.deadline.need { background: #fdf0e3; color: var(--warn); }
+
+.empty { text-align: center; color: var(--text-light); padding: 24px; }

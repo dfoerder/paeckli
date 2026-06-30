@@ -1,0 +1,9 @@
+# Lokale Supabase-Zugangsdaten – nicht committen.
+# (Für GitHub-Pages-Deployment ggf. config.js doch einchecken; siehe README.)
+config.js
+
+.DS_Store
+node_modules/
+
+# Lokale Editor-/Tooling-Konfiguration
+.claude/
