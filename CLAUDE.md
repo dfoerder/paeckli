@@ -39,35 +39,38 @@ paeckli/
 | Tabelle | Inhalt |
 |---|---|
 | `profiles` | Teilnehmende: `name`, `is_admin`. 1:1 mit `auth.users`. |
-| `campaign` | Singleton (id=1): `target_adult` (50), `target_kid` (100), `title`. |
-| `articles` | `name`, `qty_adult` (pro E-Päckli), `qty_kid` (pro K-Päckli), `donor_note`, `sort_order`. |
+| `campaign` | Singleton (id=1): `title`, `target_date`. |
+| `parcels` | Päckli-Typen (vorerst 2): `name` (Erwachsene/Kinder), `abbreviation` (E/K), `number` (Anzahl Päckli), `campaign_id`, `sort_order`. |
+| `articles` | `name`, `donor_note`, `sort_order`. |
+| `parcel_content` | Zusammensetzung: `parcel_id`, `article_id`, `quantity` (>0), unique(parcel_id, article_id). |
 | `purchases` | `article_id`, `user_id`, `quantity`, `note`. |
 | `article_status` (View) | berechnet `total_needed`, `bought`, `still_needed`. |
 
-**Kernformel:** `total_needed = qty_adult × target_adult + qty_kid × target_kid`,
+**Kernformel:** `total_needed = Σ über alle Päckli (parcel_content.quantity × parcels.number)`,
 `still_needed = max(0, total_needed − bought)`.
 
 ## Rollen & Sicherheit (RLS)
 
 - Alle Angemeldeten dürfen **lesen** (Transparenz des Bestands).
 - Käufe: jede:r legt eigene an / ändert / löscht eigene; Admin darf alle.
-- Artikel & Ziele: nur **Admin** (`is_admin = true`) schreiben.
+- Artikel, Päckli, Zusammensetzung & Ziele: nur **Admin** (`is_admin = true`) schreiben.
 - Admin-Check via `public.is_admin()` (security definer, verhindert RLS-Rekursion).
 - Erste:r Admin wird manuell gesetzt (`update profiles set is_admin=true …`).
 
 ## Ansichten (`showView(name)`)
 
 `overview` (Einkaufsstand mit Fortschrittsbalken), `buy` (Kauf eintragen),
-`mine` (eigene Käufe + löschen), `packages` (Päckli-Zusammensetzung,
-abgeleitet aus `qty_adult`/`qty_kid` > 0), `admin` (Artikel- & Ziel-CRUD).
+`mine` (eigene Käufe + löschen), `packages` (Päckli-Zusammensetzung je `parcel`
+aus `parcel_content`, Toggle dynamisch je Päckli-Typ), `admin` (Artikel- &
+Ziel-CRUD; Mengen je Päckli direkt in den Artikel-Zeilen).
 
 ## State-Objekt
 
 ```javascript
 const state = {
-  profile, campaign, articles, status, purchases,
+  profile, campaign, parcels, articles, content, status, purchases,
   view: 'overview',   // aktive Ansicht
-  pkgKind: 'adult'     // Päckli-Toggle: 'adult' | 'kid'
+  pkgParcel: null      // id des in der Päckli-Ansicht gewählten Päckli-Typs
 };
 ```
 

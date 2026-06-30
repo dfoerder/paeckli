@@ -87,10 +87,7 @@
 
     <!-- Päckli-Zusammensetzung -->
     <main id="view-packages" class="view hidden">
-      <div class="pkg-toggle">
-        <button class="pkg-btn active" data-kind="adult">Erwachsene</button>
-        <button class="pkg-btn" data-kind="kid">Kinder</button>
-      </div>
+      <div id="pkg-toggle" class="pkg-toggle"></div>
       <div id="packages-list"></div>
     </main>
 
@@ -98,10 +95,8 @@
     <main id="view-admin" class="view hidden">
       <div class="card">
         <h2>Ziele</h2>
-        <label for="goal-adult">Erwachsenenpäckli</label>
-        <input type="number" id="goal-adult" min="0" step="1" inputmode="numeric">
-        <label for="goal-kid">Kinderpäckli</label>
-        <input type="number" id="goal-kid" min="0" step="1" inputmode="numeric">
+        <p class="muted" style="margin:0 0 8px">Anzahl Päckli je Typ.</p>
+        <div id="goal-parcels"></div>
         <label for="goal-date">Stichtag (bis wann fertig)</label>
         <input type="date" id="goal-date">
         <button id="goal-btn">Ziele speichern</button>
@@ -115,16 +110,8 @@
         <h3>Neuer Artikel</h3>
         <label for="new-name">Name</label>
         <input type="text" id="new-name" placeholder="Artikelname">
-        <div class="row">
-          <div>
-            <label for="new-adult">pro E-Päckli</label>
-            <input type="number" id="new-adult" min="0" step="1" value="0" inputmode="numeric">
-          </div>
-          <div>
-            <label for="new-kid">pro K-Päckli</label>
-            <input type="number" id="new-kid" min="0" step="1" value="0" inputmode="numeric">
-          </div>
-        </div>
+        <label>Menge je Päckli</label>
+        <div id="new-parcels" class="row"></div>
         <label for="new-donor">Spender / Notiz</label>
         <input type="text" id="new-donor" placeholder="optional">
         <button id="new-btn">Artikel hinzufügen</button>

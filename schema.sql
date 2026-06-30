@@ -2,8 +2,22 @@
 --  Weihnachtspäckli-Aktion – Datenbank-Schema (Supabase / Postgres)
 -- ============================================================
 --  Im Supabase-Dashboard unter "SQL Editor" einfügen und ausführen.
---  Reihenfolge ist wichtig (Tabellen -> View -> Policies -> Beispieldaten).
+--  Reihenfolge ist wichtig (Teardown -> Tabellen -> View -> Policies -> Beispieldaten).
+--
+--  Datenmodell: Päckli-Typen liegen in `parcels` (vorerst Erwachsene/E, Kinder/K),
+--  die Zusammensetzung in `parcel_content`. `articles` enthält nur noch den
+--  Artikel selbst. So lassen sich weitere Päckli-Typen anlegen, ohne Spalten zu
+--  ändern.
 -- ============================================================
+
+-- ---------- Teardown (nur Datentabellen; profiles + campaign bleiben) ----------
+-- Reihenfolge wegen Fremdschlüsseln. Beim sauberen Neuaufbau gehen Beispiel-
+-- Artikel & -Käufe verloren; Teilnehmende (profiles) und Kampagne bleiben.
+drop view  if exists public.article_status;
+drop table if exists public.parcel_content;
+drop table if exists public.purchases;
+drop table if exists public.parcels;
+drop table if exists public.articles;
 
 -- ---------- Tabellen ----------
 
@@ -16,30 +30,51 @@ create table if not exists public.profiles (
 );
 
 -- Kampagnen-Einstellungen (genau eine Zeile, id = 1).
+-- Die Anzahl Päckli liegt jetzt pro Typ in `parcels.number`.
 create table if not exists public.campaign (
   id            int primary key default 1 check (id = 1),
   title         text not null default 'Weihnachtspäckli-Aktion',
-  target_adult  int  not null default 50  check (target_adult  >= 0),
-  target_kid    int  not null default 100 check (target_kid    >= 0),
   target_date   date                                  -- Stichtag (bis wann fertig)
 );
--- Migration: falls die Tabelle bereits ohne target_date existiert.
-alter table public.campaign add column if not exists target_date date;
+-- Migration: alte Spalten (Ziel pro Typ) entfernen, Stichtag sicherstellen.
+alter table public.campaign add  column if not exists target_date  date;
+alter table public.campaign drop column if exists target_adult;
+alter table public.campaign drop column if exists target_kid;
 insert into public.campaign (id) values (1) on conflict (id) do nothing;
 
--- Artikel mit Menge pro Erwachsenen- bzw. Kinderpäckli.
-create table if not exists public.articles (
+-- Päckli-Typen. Vorerst zwei Zeilen (Erwachsene, Kinder).
+create table public.parcels (
+  id           uuid primary key default gen_random_uuid(),
+  campaign_id  int  not null references public.campaign on delete cascade default 1,
+  name         text not null,                                  -- "Erwachsene", "Kinder"
+  abbreviation text not null,                                  -- "E", "K"
+  number       int  not null default 0 check (number >= 0),    -- Anzahl Päckli (Ziel)
+  sort_order   int  not null default 0,
+  created_at   timestamptz not null default now()
+);
+
+-- Artikel (ohne Mengen – die Menge je Päckli steht in parcel_content).
+create table public.articles (
   id          uuid primary key default gen_random_uuid(),
   name        text not null,
-  qty_adult   int  not null default 0 check (qty_adult >= 0),  -- pro P. (E)
-  qty_kid     int  not null default 0 check (qty_kid   >= 0),  -- pro P. (K)
   donor_note  text,                                            -- "Spenden 2025"
   sort_order  int  not null default 0,
   created_at  timestamptz not null default now()
 );
 
+-- Zusammensetzung: wie viele Stück eines Artikels in einen Päckli-Typ gehören.
+create table public.parcel_content (
+  id          uuid primary key default gen_random_uuid(),
+  parcel_id   uuid not null references public.parcels  on delete cascade,
+  article_id  uuid not null references public.articles on delete cascade,
+  quantity    int  not null check (quantity > 0),
+  unique (parcel_id, article_id)
+);
+create index if not exists parcel_content_parcel_idx  on public.parcel_content (parcel_id);
+create index if not exists parcel_content_article_idx on public.parcel_content (article_id);
+
 -- Käufe der Teilnehmenden.
-create table if not exists public.purchases (
+create table public.purchases (
   id          uuid primary key default gen_random_uuid(),
   article_id  uuid not null references public.articles on delete cascade,
   user_id     uuid not null references public.profiles on delete cascade default auth.uid(),
@@ -52,23 +87,29 @@ create index if not exists purchases_user_idx    on public.purchases (user_id);
 
 -- ---------- Status-View: Soll, Bestand, noch kaufen ----------
 -- security_invoker => RLS der zugrundeliegenden Tabellen greift.
+-- total_needed = Σ über alle Päckli (quantity × number).
 create or replace view public.article_status
 with (security_invoker = true) as
   select
     a.id,
     a.name,
-    a.qty_adult,
-    a.qty_kid,
     a.donor_note,
     a.sort_order,
-    (a.qty_adult * c.target_adult + a.qty_kid * c.target_kid) as total_needed,
-    coalesce(sum(p.quantity), 0)                              as bought,
-    greatest(a.qty_adult * c.target_adult + a.qty_kid * c.target_kid
-             - coalesce(sum(p.quantity), 0), 0)               as still_needed
+    coalesce(n.total_needed, 0)                                 as total_needed,
+    coalesce(b.bought, 0)                                       as bought,
+    greatest(coalesce(n.total_needed, 0) - coalesce(b.bought, 0), 0) as still_needed
   from public.articles a
-  cross join public.campaign c
-  left join public.purchases p on p.article_id = a.id
-  group by a.id, c.target_adult, c.target_kid;
+  left join (
+    select pc.article_id, sum(pc.quantity * p.number) as total_needed
+    from public.parcel_content pc
+    join public.parcels p on p.id = pc.parcel_id
+    group by pc.article_id
+  ) n on n.article_id = a.id
+  left join (
+    select article_id, sum(quantity) as bought
+    from public.purchases
+    group by article_id
+  ) b on b.article_id = a.id;
 
 -- ---------- Helfer-Funktion: ist der aktuelle Benutzer Admin? ----------
 -- security definer, damit die Policy nicht rekursiv die profiles-RLS auslöst.
@@ -87,10 +128,12 @@ $$;
 -- ============================================================
 --  Row Level Security
 -- ============================================================
-alter table public.profiles  enable row level security;
-alter table public.campaign  enable row level security;
-alter table public.articles  enable row level security;
-alter table public.purchases enable row level security;
+alter table public.profiles       enable row level security;
+alter table public.campaign       enable row level security;
+alter table public.parcels        enable row level security;
+alter table public.articles       enable row level security;
+alter table public.parcel_content enable row level security;
+alter table public.purchases      enable row level security;
 
 -- profiles: alle Angemeldeten dürfen lesen (um zu sehen, wer was gekauft hat),
 --           aber nur den eigenen Datensatz anlegen/ändern.
@@ -115,6 +158,15 @@ drop policy if exists campaign_update on public.campaign;
 create policy campaign_update on public.campaign
   for update to authenticated using (public.is_admin()) with check (public.is_admin());
 
+-- parcels: alle lesen, nur Admin schreiben.
+drop policy if exists parcels_select on public.parcels;
+create policy parcels_select on public.parcels
+  for select to authenticated using (true);
+
+drop policy if exists parcels_write on public.parcels;
+create policy parcels_write on public.parcels
+  for all to authenticated using (public.is_admin()) with check (public.is_admin());
+
 -- articles: alle lesen, nur Admin schreiben.
 drop policy if exists articles_select on public.articles;
 create policy articles_select on public.articles
@@ -122,6 +174,15 @@ create policy articles_select on public.articles
 
 drop policy if exists articles_write on public.articles;
 create policy articles_write on public.articles
+  for all to authenticated using (public.is_admin()) with check (public.is_admin());
+
+-- parcel_content: alle lesen, nur Admin schreiben.
+drop policy if exists parcel_content_select on public.parcel_content;
+create policy parcel_content_select on public.parcel_content
+  for select to authenticated using (true);
+
+drop policy if exists parcel_content_write on public.parcel_content;
+create policy parcel_content_write on public.parcel_content
   for all to authenticated using (public.is_admin()) with check (public.is_admin());
 
 -- purchases: alle lesen (Transparenz des Bestands),
@@ -146,48 +207,107 @@ create policy purchases_delete on public.purchases
   using (user_id = auth.uid() or public.is_admin());
 
 -- ============================================================
---  Beispiel-Artikel aus der Liste 2025 (optional – kann gelöscht werden)
+--  Beispieldaten aus der Liste 2025 (optional – kann gelöscht werden)
 -- ============================================================
-insert into public.articles (name, qty_adult, qty_kid, donor_note, sort_order) values
-  ('Mehl',                       1, 0, '',                       10),
-  ('Reis',                       1, 0, 'Gabriela',               20),
-  ('Zucker',                     1, 0, 'Gabriela',               30),
-  ('Teigwaren',                  1, 0, 'AVC',                    40),
-  ('Schokolade',                 1, 0, 'Annemarie',              50),
-  ('Biskuits (Päckli)',          1, 1, 'Elsbeth, Migros',        60),
-  ('Kaffee (gemahlen/instant)',  1, 1, 'Cornelia Schumm.',       70),
-  ('Tee',                        1, 0, 'AVC',                    80),
-  ('Süssigkeiten',               1, 0, 'Erika J.',               90),
-  ('Zahnpasta',                  0, 1, 'Migros',                100),
-  ('Zahnbürste',                 1, 1, 'Ruetz 50, Rüetschi 100', 110),
-  ('Seife (in Alufolie)',        1, 1, 'Ruetz 50, Migros',      120),
-  ('Shampoo (Deckel verklebt)',  1, 1, 'Dani Rogenmoser',       130),
-  ('Schreibpapier / Hefte',      1, 1, 'Migros',                140),
-  ('Kugelschreiber',             4, 4, 'Ingold Biwa, Migros',   150),
-  ('Bleistift',                  2, 1, 'Wälchli',               160),
-  ('Gummi',                      1, 1, 'Wälchli',               170),
-  ('Spitzer',                    0, 1, 'Migros',                180),
-  ('Farbstifte',                 0, 1, 'Gaerstecker 0.2/Stk.',  190),
-  ('Spielzeug: Plüschtier',      0, 12,'Galaxus',               200),
-  ('Spielzeug: Gumpibälle',      0, 2, 'Ricardo',               210),
-  ('Spielzeug: Autöli',          0, 1, 'Galaxus',               220),
-  ('Spielzeug: Tennisbälle',     0, 1, 'Galaxus',               230),
-  ('Spielzeug: Marmeli',         0, 1, 'Walter Tennisclub',     240),
-  ('Spielzeug: Div.',            0, 1, '',                      250),
-  ('Ansichtskarten',             4, 0, '',                      260),
-  ('Kerzen',                     1, 0, 'Regina',                270),
-  ('Streichhölzer 10er-Päckli',  1, 0, 'Dani Joss',             280),
-  ('Schnur',                     1, 0, 'Walter',                290),
-  ('Socken Kinder',              0, 1, '',                      300),
-  ('Socken Erwachsene',          1, 0, 'Bachmanns Deutschl.',   310),
-  ('Mützen Kinder',              0, 1, 'Erika',                 320),
-  ('Mützen Erwachsene',          1, 0, 'Erika',                 330),
-  ('Handschuhe Kinder',          0, 1, 'Bachmanns Deutschl.',   340),
-  ('Handschuhe Erwachsene',      1, 0, '',                      350),
-  ('Decken/Pullis Kinder',       0, 1, '',                      360),
-  ('Schals Erwachsene',          1, 0, '',                      370),
-  ('Schachteln Kinder',          0, 1, 'AVC',                   380),
-  ('Schachteln Erwachsene',      1, 0, 'AVC',                   390),
-  ('Geschenkpapier',             1, 1, 'AVC',                   400),
-  ('Pyjama Kinder',              0, 1, 'AVC (Kinder)',          410)
+
+-- Päckli-Typen.
+insert into public.parcels (name, abbreviation, number, sort_order) values
+  ('Erwachsene', 'E',  50, 10),
+  ('Kinder',     'K', 100, 20);
+
+-- Artikel (ohne Mengen).
+insert into public.articles (name, donor_note, sort_order) values
+  ('Mehl',                       '',                       10),
+  ('Reis',                       'Gabriela',               20),
+  ('Zucker',                     'Gabriela',               30),
+  ('Teigwaren',                  'AVC',                    40),
+  ('Schokolade',                 'Annemarie',              50),
+  ('Biskuits (Päckli)',          'Elsbeth, Migros',        60),
+  ('Kaffee (gemahlen/instant)',  'Cornelia Schumm.',       70),
+  ('Tee',                        'AVC',                    80),
+  ('Süssigkeiten',               'Erika J.',               90),
+  ('Zahnpasta',                  'Migros',                100),
+  ('Zahnbürste',                 'Ruetz 50, Rüetschi 100', 110),
+  ('Seife (in Alufolie)',        'Ruetz 50, Migros',      120),
+  ('Shampoo (Deckel verklebt)',  'Dani Rogenmoser',       130),
+  ('Schreibpapier / Hefte',      'Migros',                140),
+  ('Kugelschreiber',             'Ingold Biwa, Migros',   150),
+  ('Bleistift',                  'Wälchli',               160),
+  ('Gummi',                      'Wälchli',               170),
+  ('Spitzer',                    'Migros',                180),
+  ('Farbstifte',                 'Gaerstecker 0.2/Stk.',  190),
+  ('Spielzeug: Plüschtier',      'Galaxus',               200),
+  ('Spielzeug: Gumpibälle',      'Ricardo',               210),
+  ('Spielzeug: Autöli',          'Galaxus',               220),
+  ('Spielzeug: Tennisbälle',     'Galaxus',               230),
+  ('Spielzeug: Marmeli',         'Walter Tennisclub',     240),
+  ('Spielzeug: Div.',            '',                      250),
+  ('Ansichtskarten',             '',                      260),
+  ('Kerzen',                     'Regina',                270),
+  ('Streichhölzer 10er-Päckli',  'Dani Joss',             280),
+  ('Schnur',                     'Walter',                290),
+  ('Socken Kinder',              '',                      300),
+  ('Socken Erwachsene',          'Bachmanns Deutschl.',   310),
+  ('Mützen Kinder',              'Erika',                 320),
+  ('Mützen Erwachsene',          'Erika',                 330),
+  ('Handschuhe Kinder',          'Bachmanns Deutschl.',   340),
+  ('Handschuhe Erwachsene',      '',                      350),
+  ('Decken/Pullis Kinder',       '',                      360),
+  ('Schals Erwachsene',          '',                      370),
+  ('Schachteln Kinder',          'AVC',                   380),
+  ('Schachteln Erwachsene',      'AVC',                   390),
+  ('Geschenkpapier',             'AVC',                   400),
+  ('Pyjama Kinder',              'AVC (Kinder)',          410)
 on conflict do nothing;
+
+-- Zusammensetzung: (Artikel, Päckli-Kürzel, Menge je Päckli), nur Menge > 0.
+-- Entspricht den früheren qty_adult (E) / qty_kid (K)-Werten.
+insert into public.parcel_content (parcel_id, article_id, quantity)
+select p.id, a.id, v.qty
+from (values
+  ('Mehl',                       'E',  1),
+  ('Reis',                       'E',  1),
+  ('Zucker',                     'E',  1),
+  ('Teigwaren',                  'E',  1),
+  ('Schokolade',                 'E',  1),
+  ('Biskuits (Päckli)',          'E',  1), ('Biskuits (Päckli)',          'K', 1),
+  ('Kaffee (gemahlen/instant)',  'E',  1), ('Kaffee (gemahlen/instant)',  'K', 1),
+  ('Tee',                        'E',  1),
+  ('Süssigkeiten',               'E',  1),
+  ('Zahnpasta',                  'K',  1),
+  ('Zahnbürste',                 'E',  1), ('Zahnbürste',                 'K', 1),
+  ('Seife (in Alufolie)',        'E',  1), ('Seife (in Alufolie)',        'K', 1),
+  ('Shampoo (Deckel verklebt)',  'E',  1), ('Shampoo (Deckel verklebt)',  'K', 1),
+  ('Schreibpapier / Hefte',      'E',  1), ('Schreibpapier / Hefte',      'K', 1),
+  ('Kugelschreiber',             'E',  4), ('Kugelschreiber',             'K', 4),
+  ('Bleistift',                  'E',  2), ('Bleistift',                  'K', 1),
+  ('Gummi',                      'E',  1), ('Gummi',                      'K', 1),
+  ('Spitzer',                    'K',  1),
+  ('Farbstifte',                 'K',  1),
+  ('Spielzeug: Plüschtier',      'K', 12),
+  ('Spielzeug: Gumpibälle',      'K',  2),
+  ('Spielzeug: Autöli',          'K',  1),
+  ('Spielzeug: Tennisbälle',     'K',  1),
+  ('Spielzeug: Marmeli',         'K',  1),
+  ('Spielzeug: Div.',            'K',  1),
+  ('Ansichtskarten',             'E',  4),
+  ('Kerzen',                     'E',  1),
+  ('Streichhölzer 10er-Päckli',  'E',  1),
+  ('Schnur',                     'E',  1),
+  ('Socken Kinder',              'K',  1),
+  ('Socken Erwachsene',          'E',  1),
+  ('Mützen Kinder',              'K',  1),
+  ('Mützen Erwachsene',          'E',  1),
+  ('Handschuhe Kinder',          'K',  1),
+  ('Handschuhe Erwachsene',      'E',  1),
+  ('Decken/Pullis Kinder',       'K',  1),
+  ('Schals Erwachsene',          'E',  1),
+  ('Schachteln Kinder',          'K',  1),
+  ('Schachteln Erwachsene',      'E',  1),
+  ('Geschenkpapier',             'E',  1), ('Geschenkpapier',             'K', 1),
+  ('Pyjama Kinder',              'K',  1)
+) as v(article_name, parcel_abbr, qty)
+join public.articles a on a.name         = v.article_name
+join public.parcels  p on p.abbreviation = v.parcel_abbr
+where v.qty > 0
+on conflict (parcel_id, article_id) do nothing;

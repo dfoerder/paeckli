@@ -10,8 +10,8 @@ schon genug da ist und was noch fehlt.
 - **Übersicht** – Einkaufsstand aller Artikel mit Fortschrittsbalken (genug / fehlt noch).
 - **Kauf eintragen** – Artikel + Anzahl erfassen.
 - **Meine Käufe** – eigene Einträge ansehen und löschen.
-- **Päckli-Zusammensetzung** – was kommt in ein Erwachsenen- bzw. Kinderpäckli.
-- **Admin** – Artikelliste und Ziele (Anzahl Päckli) verwalten.
+- **Päckli-Zusammensetzung** – was kommt in welchen Päckli-Typ (Erwachsene/Kinder).
+- **Admin** – Artikelliste (inkl. Menge je Päckli-Typ) und Ziele (Anzahl Päckli) verwalten.
 
 ## Tech-Stack
 

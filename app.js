@@ -20,13 +20,22 @@ if (configured && window.supabase) {
 // ---------- Zustand ----------
 const state = {
   profile: null,      // { id, name, is_admin }
-  campaign: null,     // { target_adult, target_kid, title }
-  articles: [],       // [{ id, name, qty_adult, qty_kid, ... }]
+  campaign: null,     // { title, target_date }
+  parcels: [],        // [{ id, name, abbreviation, number, sort_order }]
+  articles: [],       // [{ id, name, donor_note, sort_order }]
+  content: [],        // parcel_content: [{ parcel_id, article_id, quantity }]
   status: [],         // aus View article_status
   purchases: [],      // eigene Käufe (mit Artikelname)
   view: 'overview',
-  pkgKind: 'adult'
+  pkgParcel: null     // id des in der Päckli-Ansicht gewählten Päckli-Typs
 };
+
+// Menge eines Artikels in einem bestimmten Päckli-Typ (0, falls nicht enthalten).
+function contentQty(parcelId, articleId) {
+  const row = state.content.find(
+    (c) => c.parcel_id === parcelId && c.article_id === articleId);
+  return row ? row.quantity : 0;
+}
 
 // ---------- Kurzhelfer ----------
 const $ = (sel) => document.querySelector(sel);
@@ -177,19 +186,28 @@ async function logout() {
 //  Daten laden
 // ============================================================
 async function loadData() {
-  const [campaign, articles, status, purchases] = await Promise.all([
+  const [campaign, parcels, articles, content, status, purchases] = await Promise.all([
     db.from('campaign').select('*').eq('id', 1).single(),
+    db.from('parcels').select('*').order('sort_order'),
     db.from('articles').select('*').order('sort_order'),
+    db.from('parcel_content').select('*'),
     db.from('article_status').select('*').order('sort_order'),
     db.from('purchases')
       .select('*, articles(name)')
       .eq('user_id', state.profile.id)
       .order('created_at', { ascending: false })
   ]);
-  state.campaign = campaign.data || { target_adult: 50, target_kid: 100 };
+  state.campaign = campaign.data || {};
+  state.parcels = parcels.data || [];
   state.articles = articles.data || [];
+  state.content = content.data || [];
   state.status = status.data || [];
   state.purchases = purchases.data || [];
+
+  // gewähltes Päckli für die Päckli-Ansicht initialisieren / gültig halten.
+  if (!state.parcels.some((p) => p.id === state.pkgParcel)) {
+    state.pkgParcel = state.parcels[0]?.id || null;
+  }
 }
 
 async function reload() {
@@ -222,10 +240,13 @@ function renderOverview() {
   const counted = list.filter((a) => a.total_needed > 0).length;
   const pct = totalNeeded ? Math.round((totalBought / totalNeeded) * 100) : 0;
 
+  const goalNum = state.parcels.map((p) => p.number).join('+') || '–';
+  const goalLbl = state.parcels.map((p) => esc(p.abbreviation)).join('+');
+
   el('campaign-summary').innerHTML = `
     <div class="stat"><div class="num">${pct}%</div><div class="lbl">gesamt</div></div>
     <div class="stat"><div class="num">${complete}/${counted}</div><div class="lbl">Artikel komplett</div></div>
-    <div class="stat"><div class="num">${state.campaign.target_adult}+${state.campaign.target_kid}</div><div class="lbl">Päckli-Ziel (E+K)</div></div>
+    <div class="stat"><div class="num">${goalNum}</div><div class="lbl">Päckli-Ziel${goalLbl ? ' (' + goalLbl + ')' : ''}</div></div>
   `;
 
   const banner = deadlineBanner();
@@ -326,30 +347,44 @@ async function deletePurchase(id) {
 // ============================================================
 //  Ansicht: Päckli-Zusammensetzung
 // ============================================================
-function setPkgKind(kind) {
-  state.pkgKind = kind;
-  $$('.pkg-btn').forEach((b) => b.classList.toggle('active', b.dataset.kind === kind));
+function setPkgParcel(id) {
+  state.pkgParcel = id;
   renderPackages();
 }
 
 function renderPackages() {
-  const field = state.pkgKind === 'adult' ? 'qty_adult' : 'qty_kid';
-  const items = state.articles.filter((a) => a[field] > 0);
-  const targetLabel = state.pkgKind === 'adult'
-    ? `${state.campaign.target_adult} Erwachsenenpäckli`
-    : `${state.campaign.target_kid} Kinderpäckli`;
+  // Toggle-Buttons je Päckli-Typ.
+  el('pkg-toggle').innerHTML = state.parcels.map((p) => `
+    <button class="pkg-btn ${p.id === state.pkgParcel ? 'active' : ''}" data-parcel="${p.id}">
+      ${esc(p.name)}
+    </button>`).join('');
+  $$('#pkg-toggle .pkg-btn').forEach((b) =>
+    b.addEventListener('click', () => setPkgParcel(b.dataset.parcel)));
+
+  const parcel = state.parcels.find((p) => p.id === state.pkgParcel);
+  if (!parcel) {
+    el('packages-list').innerHTML = '<p class="empty">Noch keine Päckli-Typen angelegt.</p>';
+    return;
+  }
+
+  // Inhalt des gewählten Päcklis: alle parcel_content-Einträge, Artikelname über Lookup.
+  const items = state.content
+    .filter((c) => c.parcel_id === parcel.id)
+    .map((c) => ({ article: state.articles.find((a) => a.id === c.article_id), qty: c.quantity }))
+    .filter((x) => x.article)
+    .sort((a, b) => a.article.sort_order - b.article.sort_order);
 
   if (!items.length) {
     el('packages-list').innerHTML = '<p class="empty">Keine Artikel zugeordnet.</p>';
     return;
   }
   el('packages-list').innerHTML = `
-    <p class="muted" style="margin:0 4px 10px">Inhalt eines Päcklis · Ziel: ${targetLabel}</p>
-    ${items.map((a) => `
+    <p class="muted" style="margin:0 4px 10px">Inhalt eines Päcklis · Ziel: ${parcel.number} ${esc(parcel.name)}</p>
+    ${items.map((x) => `
       <div class="item">
         <div class="head">
-          <span class="name">${esc(a.name)}</span>
-          <span class="count">${a[field]}×</span>
+          <span class="name">${esc(x.article.name)}</span>
+          <span class="count">${x.qty}×</span>
         </div>
       </div>`).join('')}`;
 }
@@ -358,17 +393,30 @@ function renderPackages() {
 //  Ansicht: Admin
 // ============================================================
 function renderAdmin() {
-  el('goal-adult').value = state.campaign.target_adult;
-  el('goal-kid').value = state.campaign.target_kid;
+  // Ziele: ein Anzahl-Feld je Päckli-Typ.
+  el('goal-parcels').innerHTML = state.parcels.map((p) => `
+    <label>${esc(p.name)} (${esc(p.abbreviation)})</label>
+    <input type="number" min="0" step="1" inputmode="numeric"
+           data-parcel-goal="${p.id}" value="${p.number}">`).join('');
   el('goal-date').value = state.campaign.target_date || '';
+
+  // Neuer Artikel: ein Mengen-Feld je Päckli-Typ.
+  el('new-parcels').innerHTML = state.parcels.map((p) => `
+    <div>
+      <label>pro ${esc(p.abbreviation)}</label>
+      <input type="number" min="0" step="1" value="0" inputmode="numeric" data-new-parcel="${p.id}">
+    </div>`).join('');
 
   el('admin-articles').innerHTML = state.articles.map((a) => `
     <div class="item" data-row="${a.id}">
       <label>Name</label>
       <input type="text" data-f="name" value="${esc(a.name)}">
       <div class="row">
-        <div><label>pro E</label><input type="number" min="0" data-f="qty_adult" value="${a.qty_adult}"></div>
-        <div><label>pro K</label><input type="number" min="0" data-f="qty_kid" value="${a.qty_kid}"></div>
+        ${state.parcels.map((p) => `
+          <div>
+            <label>pro ${esc(p.abbreviation)}</label>
+            <input type="number" min="0" step="1" data-parcel="${p.id}" value="${contentQty(p.id, a.id)}">
+          </div>`).join('')}
       </div>
       <label>Spender / Notiz</label>
       <input type="text" data-f="donor_note" value="${esc(a.donor_note || '')}">
@@ -386,15 +434,42 @@ function renderAdmin() {
 
 async function saveGoals() {
   const msg = el('goal-msg');
-  const { error } = await db.from('campaign').update({
-    target_adult: parseInt(el('goal-adult').value, 10) || 0,
-    target_kid: parseInt(el('goal-kid').value, 10) || 0,
-    target_date: el('goal-date').value || null
-  }).eq('id', 1);
+
+  // Anzahl Päckli je Typ aktualisieren.
+  for (const inp of $$('#goal-parcels [data-parcel-goal]')) {
+    const { error } = await db.from('parcels')
+      .update({ number: parseInt(inp.value, 10) || 0 })
+      .eq('id', inp.dataset.parcelGoal);
+    if (error) { msg.className = 'muted err'; msg.textContent = 'Fehler: ' + error.message; return; }
+  }
+
+  const { error } = await db.from('campaign')
+    .update({ target_date: el('goal-date').value || null })
+    .eq('id', 1);
   if (error) { msg.className = 'muted err'; msg.textContent = 'Fehler: ' + error.message; return; }
+
   msg.className = 'muted ok';
   msg.textContent = 'Gespeichert ✓';
   await loadData();
+}
+
+// Mengen je Päckli für einen Artikel speichern: >0 anlegen/ändern, 0 löschen.
+async function saveParcelContent(articleId, inputs) {
+  for (const inp of inputs) {
+    const parcelId = inp.dataset.parcel;
+    const qty = parseInt(inp.value, 10) || 0;
+    if (qty > 0) {
+      const { error } = await db.from('parcel_content')
+        .upsert({ parcel_id: parcelId, article_id: articleId, quantity: qty },
+                { onConflict: 'parcel_id,article_id' });
+      if (error) return error;
+    } else {
+      const { error } = await db.from('parcel_content').delete()
+        .eq('parcel_id', parcelId).eq('article_id', articleId);
+      if (error) return error;
+    }
+  }
+  return null;
 }
 
 async function saveArticle(id) {
@@ -402,11 +477,13 @@ async function saveArticle(id) {
   const get = (f) => row.querySelector(`[data-f="${f}"]`).value;
   const { error } = await db.from('articles').update({
     name: get('name').trim(),
-    qty_adult: parseInt(get('qty_adult'), 10) || 0,
-    qty_kid: parseInt(get('qty_kid'), 10) || 0,
     donor_note: get('donor_note').trim() || null
   }).eq('id', id);
   if (error) { alert('Fehler: ' + error.message); return; }
+
+  const cErr = await saveParcelContent(id, row.querySelectorAll('[data-parcel]'));
+  if (cErr) { alert('Fehler: ' + cErr.message); return; }
+
   await loadData();
   // kurze Bestätigung
   const btn = row.querySelector('[data-save]');
@@ -426,18 +503,25 @@ async function addArticle() {
   const name = el('new-name').value.trim();
   if (!name) { msg.className = 'muted err'; msg.textContent = 'Name fehlt.'; return; }
   const maxOrder = state.articles.reduce((m, a) => Math.max(m, a.sort_order), 0);
-  const { error } = await db.from('articles').insert({
+  const { data, error } = await db.from('articles').insert({
     name,
-    qty_adult: parseInt(el('new-adult').value, 10) || 0,
-    qty_kid: parseInt(el('new-kid').value, 10) || 0,
     donor_note: el('new-donor').value.trim() || null,
     sort_order: maxOrder + 10
-  });
+  }).select().single();
   if (error) { msg.className = 'muted err'; msg.textContent = 'Fehler: ' + error.message; return; }
+
+  // Mengen je Päckli für den neuen Artikel anlegen (nur > 0).
+  const rows = $$('#new-parcels [data-new-parcel]')
+    .map((inp) => ({ parcel_id: inp.dataset.newParcel, article_id: data.id, quantity: parseInt(inp.value, 10) || 0 }))
+    .filter((r) => r.quantity > 0);
+  if (rows.length) {
+    const { error: cErr } = await db.from('parcel_content').insert(rows);
+    if (cErr) { msg.className = 'muted err'; msg.textContent = 'Fehler: ' + cErr.message; return; }
+  }
+
   el('new-name').value = '';
-  el('new-adult').value = '0';
-  el('new-kid').value = '0';
   el('new-donor').value = '';
+  $$('#new-parcels [data-new-parcel]').forEach((inp) => { inp.value = '0'; });
   msg.className = 'muted ok';
   msg.textContent = 'Hinzugefügt ✓';
   await reload();
@@ -457,8 +541,6 @@ function wireEvents() {
 
   $$('#tabs .tab').forEach((t) =>
     t.addEventListener('click', () => showView(t.dataset.view)));
-  $$('.pkg-btn').forEach((b) =>
-    b.addEventListener('click', () => setPkgKind(b.dataset.kind)));
 }
 
 // ---------- Service Worker ----------
