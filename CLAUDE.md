@@ -71,6 +71,15 @@ const state = {
 };
 ```
 
+## Branches
+
+| Branch | Zweck |
+|---|---|
+| `main` | Stabiler Stand (später GitHub-Pages-Deployment). |
+| `dev`  | Entwicklung. Hier werden Änderungen gemacht und später nach `main` gemergt. |
+
+Merge-Richtung: `dev → main`.
+
 ## Konventionen
 
 - Sprache: Code Englisch, UI-Texte Deutsch (Schweizer Schreibweise: „ss" statt „ß").
