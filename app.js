@@ -22,7 +22,7 @@ const state = {
   profile: null,      // { id, name, is_admin }
   campaign: null,     // { title, target_date }
   parcels: [],        // [{ id, name, abbreviation, number, sort_order }]
-  articles: [],       // [{ id, name, donor_note, sort_order }]
+  articles: [],       // [{ id, name, notes, sort_order }]
   content: [],        // parcel_content: [{ parcel_id, article_id, quantity }]
   status: [],         // aus View article_status
   purchases: [],      // eigene Käufe (mit Artikelname)
@@ -275,7 +275,7 @@ function renderOverview() {
           <span class="count"><span class="${done ? 'done' : ''}">${a.bought}</span> / ${a.total_needed}</span>
         </div>
         <div class="bar"><span style="width:${pctItem}%"></span></div>
-        <div class="sub">${pill}${a.donor_note ? ' · ' + esc(a.donor_note) : ''}</div>
+        <div class="sub">${pill}${a.notes ? ' · ' + esc(a.notes) : ''}</div>
       </div>`;
   }).join('');
 }
@@ -424,8 +424,8 @@ function renderAdmin() {
             <input type="number" min="0" step="1" data-parcel="${p.id}" value="${contentQty(p.id, a.id)}">
           </div>`).join('')}
       </div>
-      <label>Spender / Notiz</label>
-      <input type="text" data-f="donor_note" value="${esc(a.donor_note || '')}">
+      <label>Notiz</label>
+      <input type="text" data-f="notes" value="${esc(a.notes || '')}">
       <div class="row-actions">
         <button class="secondary" data-save="${a.id}">Speichern</button>
         <button class="ghost" data-delart="${a.id}">Löschen</button>
@@ -483,7 +483,7 @@ async function saveArticle(id) {
   const get = (f) => row.querySelector(`[data-f="${f}"]`).value;
   const { error } = await db.from('articles').update({
     name: get('name').trim(),
-    donor_note: get('donor_note').trim() || null
+    notes: get('notes').trim() || null
   }).eq('id', id);
   if (error) { alert('Fehler: ' + error.message); return; }
 
@@ -511,7 +511,7 @@ async function addArticle() {
   const maxOrder = state.articles.reduce((m, a) => Math.max(m, a.sort_order), 0);
   const { data, error } = await db.from('articles').insert({
     name,
-    donor_note: el('new-donor').value.trim() || null,
+    notes: el('new-notes').value.trim() || null,
     sort_order: maxOrder + 10
   }).select().single();
   if (error) { msg.className = 'muted err'; msg.textContent = 'Fehler: ' + error.message; return; }
@@ -526,7 +526,7 @@ async function addArticle() {
   }
 
   el('new-name').value = '';
-  el('new-donor').value = '';
+  el('new-notes').value = '';
   $$('#new-parcels [data-new-parcel]').forEach((inp) => { inp.value = '0'; });
   msg.className = 'muted ok';
   msg.textContent = 'Hinzugefügt ✓';
