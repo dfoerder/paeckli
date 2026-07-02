@@ -6,7 +6,8 @@ schon genug da ist und was noch fehlt.
 
 ## Funktionen
 
-- **Login per Magic-Link** – E-Mail eingeben, Anmelde-Link kommt per Mail (kein Passwort).
+- **Login per E-Mail + Passwort** – kein Mailversand, kein Rate-Limit. Passwort
+  vergessen? Admin setzt es über die Supabase Admin-API neu (siehe unten).
 - **Übersicht** – Einkaufsstand aller Artikel mit Fortschrittsbalken (genug / fehlt noch).
 - **Kauf eintragen** – Artikel + Anzahl erfassen.
 - **Meine Käufe** – eigene Einträge ansehen und löschen.
@@ -45,16 +46,33 @@ schon genug da ist und was noch fehlt.
 > Editor `alter table public.profiles add column if not exists contact text;`
 > auszuführen (in `schema.sql` bereits enthalten).
 
-### 3. Magic-Link / E-Mail konfigurieren
+### 3. E-Mail-Bestätigung deaktivieren
 
-1. **Authentication → Providers → Email**: „Email“ aktiviert lassen.
-2. **Authentication → URL Configuration**: bei *Redirect URLs* die Adressen
-   eintragen, unter denen die App läuft, z.B.:
-   - `http://localhost:8091` (lokale Entwicklung)
-   - `https://DEIN-NAME.github.io/paeckli/` (GitHub Pages)
-3. Hinweis: Der eingebaute Supabase-Mailversand ist auf wenige Mails/Stunde
-   begrenzt – für eine kleine Helfergruppe reicht das. Bei Bedarf einen eigenen
-   SMTP-Anbieter unter *Authentication → Emails* hinterlegen.
+Die App verschickt nie eine Mail (weder beim Registrieren noch bei „Passwort
+vergessen“) – dafür muss die Bestätigungsmail beim Registrieren abgeschaltet
+werden:
+
+1. **Authentication → Providers → Email**: „Email“ aktiviert lassen, aber
+   **„Confirm email“ ausschalten**. Ohne diesen Schritt verlangt Supabase nach
+   dem Registrieren eine Bestätigungsmail und Login schlägt fehl.
+
+**Passwort zurücksetzen (kein Selfservice):** Ruft jemand an, weil das
+Passwort vergessen wurde, setzt der Admin es direkt über die Supabase
+Admin-API neu – ganz ohne Mail oder SMS:
+
+```bash
+curl -X PUT 'https://DEIN-PROJEKT.supabase.co/auth/v1/admin/users/<user-id>' \
+  -H "apikey: <service_role_key>" \
+  -H "Authorization: Bearer <service_role_key>" \
+  -H "Content-Type: application/json" \
+  -d '{"password":"NeuesPasswort123"}'
+```
+
+- `<user-id>` findet sich im Supabase-Dashboard unter **Authentication → Users**.
+- Den `service_role_key` gibt es unter **Project Settings → API** – er hat
+  vollen Zugriff auf die Datenbank (umgeht Row Level Security) und darf
+  **niemals** in `config.js`, im Repo oder sonst im Code landen. Nur lokal
+  beim Admin aufbewahren.
 
 ### 4. Zugangsdaten in die App eintragen
 
@@ -66,7 +84,7 @@ schon genug da ist und was noch fehlt.
 
 ### 5. Sich selbst zum Admin machen
 
-1. App starten (siehe unten) und einmal per Magic-Link anmelden, Namen erfassen.
+1. App starten (siehe unten), einmal registrieren (E-Mail + Passwort) und Namen erfassen.
 2. Im Supabase-Dashboard: **Table Editor → profiles** → bei deinem Eintrag
    `is_admin` auf `true` setzen. (Oder im SQL Editor:
    `update profiles set is_admin = true where name = 'Dein Name';`)

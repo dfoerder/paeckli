@@ -14,7 +14,10 @@ Backend**, weil mehrere Personen geteilte Daten brauchen.
 
 - Reines HTML/CSS/JS – kein Framework, kein Bundler, kein Build-Step.
 - **Supabase** (Postgres + Auth + Row Level Security) als Backend, Client per CDN.
-- **Magic-Link-Login** (passwortlos) via `db.auth.signInWithOtp`.
+- **E-Mail+Passwort-Login** via `db.auth.signInWithPassword` / `signUp`. „Confirm
+  email" ist in Supabase deaktiviert → es wird nie eine Mail verschickt. Passwort-
+  Resets laufen ausserhalb der App: Person ruft den Admin an, der das Passwort
+  über die Supabase Admin-API (`service_role`-Key) direkt setzt.
 - **PWA**: `sw.js` (network-first, cacht nur GET), `manifest.json`.
 
 ## Dateien
@@ -123,7 +126,10 @@ da die Preview die `launch.json` des primären Projekts liest. Alternativ:
 
 - `config.js` ist gitignored → fürs GitHub-Pages-Deployment entweder mit-committen
   (anon-Key ist öffentlich) oder anders bereitstellen. Siehe README.
-- Supabase-Standard-Mailversand ist rate-limitiert; bei vielen Helfer:innen
-  eigenen SMTP hinterlegen.
+- Da nie E-Mails verschickt werden, wird auch keine Adresse verifiziert – jede:r
+  kann sich mit einer beliebigen E-Mail registrieren. Für den bekannten,
+  überschaubaren Helferkreis bewusst in Kauf genommen.
+- `service_role`-Key (für Passwort-Resets) liegt nur lokal beim Admin, niemals
+  im Repo oder in `config.js`.
 - Echtzeit-Updates (Supabase Realtime) noch nicht aktiviert – aktuell lädt die
   App die Daten bei jedem Ansichtswechsel/Aktion neu.

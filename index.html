@@ -33,10 +33,13 @@
     <main id="view-login" class="view hidden">
       <div class="card">
         <h2>Anmelden</h2>
-        <p class="muted">Gib deine E-Mail-Adresse ein. Du bekommst einen Anmelde-Link zugeschickt – kein Passwort nötig.</p>
+        <p class="muted">Mit E-Mail und Passwort anmelden. Noch kein Konto? Unten registrieren.</p>
         <input type="email" id="login-email" placeholder="name@beispiel.ch" autocomplete="email" autocapitalize="off" autocorrect="off" spellcheck="false">
-        <button id="login-btn">Anmelde-Link senden</button>
+        <input type="password" id="login-password" placeholder="Passwort (mind. 6 Zeichen)" autocomplete="current-password">
+        <button id="login-btn">Anmelden</button>
+        <button id="register-btn" class="secondary">Registrieren</button>
         <p id="login-msg" class="muted"></p>
+        <p class="muted">Passwort vergessen? Ruf den Admin an.</p>
       </div>
     </main>
 

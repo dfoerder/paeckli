@@ -71,7 +71,7 @@ async function init() {
     return;
   }
 
-  // Reagiert auf Login/Logout (auch nach Magic-Link-Rückkehr).
+  // Reagiert auf Login/Logout.
   db.auth.onAuthStateChange((_event, session) => {
     handleSession(session);
   });
@@ -128,28 +128,56 @@ function showLoggedIn() {
   showView('overview');
 }
 
-// ---------- Login per Magic-Link ----------
-async function sendMagicLink() {
+// ---------- Login per E-Mail + Passwort ----------
+function loginFields() {
   const email = el('login-email').value.trim();
+  const password = el('login-password').value;
   const msg = el('login-msg');
-  if (!email) { msg.textContent = 'Bitte E-Mail eingeben.'; return; }
+  if (!email || !password) { msg.textContent = 'Bitte E-Mail und Passwort eingeben.'; return null; }
+  return { email, password, msg };
+}
+
+async function login() {
+  const fields = loginFields();
+  if (!fields) return;
+  const { email, password, msg } = fields;
 
   el('login-btn').disabled = true;
+  el('register-btn').disabled = true;
   msg.className = 'muted';
-  msg.textContent = 'Sende Link …';
+  msg.textContent = 'Melde an …';
 
-  const { error } = await db.auth.signInWithOtp({
-    email,
-    options: { emailRedirectTo: window.location.href.split('#')[0] }
-  });
+  const { error } = await db.auth.signInWithPassword({ email, password });
 
   el('login-btn').disabled = false;
+  el('register-btn').disabled = false;
   if (error) {
     msg.className = 'muted err';
     msg.textContent = 'Fehler: ' + error.message;
   } else {
-    msg.className = 'muted ok';
-    msg.textContent = 'Link gesendet! Bitte E-Mail-Postfach prüfen.';
+    msg.textContent = '';
+  }
+}
+
+async function register() {
+  const fields = loginFields();
+  if (!fields) return;
+  const { email, password, msg } = fields;
+
+  el('login-btn').disabled = true;
+  el('register-btn').disabled = true;
+  msg.className = 'muted';
+  msg.textContent = 'Registriere …';
+
+  const { error } = await db.auth.signUp({ email, password });
+
+  el('login-btn').disabled = false;
+  el('register-btn').disabled = false;
+  if (error) {
+    msg.className = 'muted err';
+    msg.textContent = 'Fehler: ' + error.message;
+  } else {
+    msg.textContent = '';
   }
 }
 
@@ -657,8 +685,9 @@ async function addArticle() {
 //  Event-Verdrahtung
 // ============================================================
 function wireEvents() {
-  el('login-btn')?.addEventListener('click', sendMagicLink);
-  el('login-email')?.addEventListener('keydown', (e) => { if (e.key === 'Enter') sendMagicLink(); });
+  el('login-btn')?.addEventListener('click', login);
+  el('register-btn')?.addEventListener('click', register);
+  el('login-password')?.addEventListener('keydown', (e) => { if (e.key === 'Enter') login(); });
   el('onboard-btn')?.addEventListener('click', saveOnboard);
   el('logout-btn')?.addEventListener('click', logout);
   el('buy-btn')?.addEventListener('click', submitBuy);
