@@ -108,6 +108,8 @@ create table public.purchases (
   user_id     uuid not null references public.profiles on delete cascade default auth.uid(),
   quantity    int  not null check (quantity > 0),
   note        text,
+  shop        text,                                    -- Einkaufsort (optional)
+  donor       text,                                    -- Name Spender:in, falls nicht Käufer:in (optional)
   created_at  timestamptz not null default now()
 );
 create index if not exists purchases_article_idx on public.purchases (article_id);

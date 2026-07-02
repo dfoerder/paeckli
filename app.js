@@ -339,9 +339,20 @@ function renderBuyOptions() {
     .join('');
 }
 
+// Shop-Dropdown: bei "Anderer Shop…" das Freitextfeld einblenden.
+function onBuyShopChange() {
+  const isOther = el('buy-shop').value === '__other__';
+  el('buy-shop-other').classList.toggle('hidden', !isOther);
+  if (isOther) el('buy-shop-other').focus();
+}
+
 async function submitBuy() {
   const article_id = el('buy-article').value;
   const quantity = parseInt(el('buy-qty').value, 10);
+  const shop = el('buy-shop').value === '__other__'
+    ? el('buy-shop-other').value.trim() || null
+    : el('buy-shop').value || null;
+  const donor = el('buy-donor').value.trim() || null;
   const note = el('buy-note').value.trim() || null;
   const msg = el('buy-msg');
 
@@ -350,7 +361,7 @@ async function submitBuy() {
 
   el('buy-btn').disabled = true;
   const { error } = await db.from('purchases').insert({
-    article_id, quantity, note, user_id: state.profile.id
+    article_id, quantity, shop, donor, note, user_id: state.profile.id
   });
   el('buy-btn').disabled = false;
 
@@ -362,6 +373,10 @@ async function submitBuy() {
   msg.className = 'muted ok';
   msg.textContent = 'Eingetragen ✓';
   el('buy-qty').value = '1';
+  el('buy-shop').value = '';
+  el('buy-shop-other').value = '';
+  el('buy-shop-other').classList.add('hidden');
+  el('buy-donor').value = '';
   el('buy-note').value = '';
   await loadData();
   renderMine();
@@ -370,25 +385,31 @@ async function submitBuy() {
 // ============================================================
 //  Ansicht: Meine Käufe
 // ============================================================
+// Zweite Zeile eines Kauf-Eintrags: Datum, Shop, Spender:in, Notiz.
+function purchaseSub(p) {
+  const parts = [new Date(p.created_at).toLocaleDateString('de-CH')];
+  if (p.shop) parts.push('🏬 ' + esc(p.shop));
+  if (p.donor) parts.push('🎁 ' + esc(p.donor));
+  if (p.note) parts.push(esc(p.note));
+  return parts.join(' · ');
+}
+
 function renderMine() {
   if (!state.purchases.length) {
     el('mine-list').innerHTML = '<p class="empty">Du hast noch nichts eingetragen.</p>';
     return;
   }
-  el('mine-list').innerHTML = state.purchases.map((p) => {
-    const date = new Date(p.created_at).toLocaleDateString('de-CH');
-    return `
+  el('mine-list').innerHTML = state.purchases.map((p) => `
       <div class="item">
         <div class="head">
           <span class="name">${esc(p.articles?.name || 'Artikel')}</span>
           <span class="count">${p.quantity} Stk.</span>
         </div>
-        <div class="sub">${date}${p.note ? ' · ' + esc(p.note) : ''}</div>
+        <div class="sub">${purchaseSub(p)}</div>
         <div class="row-actions">
           <button class="ghost" data-del="${p.id}">Löschen</button>
         </div>
-      </div>`;
-  }).join('');
+      </div>`).join('');
 
   $$('#mine-list [data-del]').forEach((b) =>
     b.addEventListener('click', () => deletePurchase(b.dataset.del)));
@@ -426,14 +447,13 @@ function renderAllPurchases() {
       ${g.contactEmail ? `<p class="buyer-contact">📧 ${esc(g.contactEmail)}</p>` : ''}
       ${g.contactPhone ? `<p class="buyer-contact">📞 ${esc(g.contactPhone)}</p>` : ''}
       ${g.items.map((p) => {
-        const date = new Date(p.created_at).toLocaleDateString('de-CH');
         return `
           <div class="item">
             <div class="head">
               <span class="name">${esc(p.articles?.name || 'Artikel')}</span>
               <span class="count">${p.quantity} Stk.</span>
             </div>
-            <div class="sub">${date}${p.note ? ' · ' + esc(p.note) : ''}</div>
+            <div class="sub">${purchaseSub(p)}</div>
           </div>`;
       }).join('')}
     </div>`).join('');
@@ -766,6 +786,7 @@ function wireEvents() {
   el('logout-btn')?.addEventListener('click', logout);
   el('user-name')?.addEventListener('click', () => showView('profile'));
   el('buy-btn')?.addEventListener('click', submitBuy);
+  el('buy-shop')?.addEventListener('change', onBuyShopChange);
   el('profile-btn')?.addEventListener('click', saveProfile);
   el('profile-password-btn')?.addEventListener('click', changePassword);
   el('goal-btn')?.addEventListener('click', saveGoals);

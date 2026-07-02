@@ -9,8 +9,8 @@ schon genug da ist und was noch fehlt.
 - **Login per E-Mail + Passwort** – kein Mailversand, kein Rate-Limit. Passwort
   vergessen? Admin setzt es über die Supabase Admin-API neu (siehe unten).
 - **Übersicht** – Einkaufsstand aller Artikel mit Fortschrittsbalken (genug / fehlt noch).
-- **Deine Käufe** – Kauf eintragen (Artikel + Anzahl) und darunter eigene
-  Einträge ansehen und löschen, alles in einem Tab.
+- **Deine Käufe** – Kauf eintragen (Artikel, Anzahl, optional Shop, Spender:in,
+  Notiz) und darunter eigene Einträge ansehen und löschen, alles in einem Tab.
 - **Profil** (Klick auf den eigenen Namen in der Kopfzeile) – Vorname/Nachname,
   Kontakt-Telefon sowie das eigene Passwort ändern. Die Kontakt-E-Mail ist die
   Login-E-Mail und nicht änderbar; wer eine andere Adresse will, registriert
@@ -71,6 +71,11 @@ schon genug da ist und was noch fehlt.
 > alter table public.profiles drop column if exists name;
 > update public.profiles p set contact_email = u.email
 > from auth.users u where p.id = u.id and p.contact_email is distinct from u.email;
+> ```
+> Für die neuen Spalten `shop`/`donor` in `purchases` genügt entsprechend:
+> ```sql
+> alter table public.purchases add column if not exists shop text;
+> alter table public.purchases add column if not exists donor text;
 > ```
 
 ### 3. E-Mail-Bestätigung deaktivieren

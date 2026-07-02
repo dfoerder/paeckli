@@ -46,7 +46,7 @@ paeckli/
 | `parcels` | Päckli-Typen (vorerst 2): `name` (Erwachsene/Kinder), `abbreviation` (E/K), `number` (Anzahl Päckli), `campaign_id`, `sort_order`. |
 | `articles` | `name`, `notes`, `sort_order`. |
 | `parcel_content` | Zusammensetzung: `parcel_id`, `article_id`, `quantity` (>0), unique(parcel_id, article_id). |
-| `purchases` | `article_id`, `user_id`, `quantity`, `note`. |
+| `purchases` | `article_id`, `user_id`, `quantity`, `shop` (Dropdown + Freitext „Anderer Shop…", optional), `donor` (Spender:in-Name, optional), `note`. |
 | `article_status` (View) | berechnet `total_needed`, `bought`, `still_needed`. |
 
 **Kernformel:** `total_needed = Σ über alle Päckli (parcel_content.quantity × parcels.number)`,
