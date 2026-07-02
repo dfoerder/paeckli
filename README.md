@@ -12,7 +12,9 @@ schon genug da ist und was noch fehlt.
 - **Kauf eintragen** – Artikel + Anzahl erfassen.
 - **Meine Käufe** – eigene Einträge ansehen und löschen.
 - **Profil** (Klick auf den eigenen Namen in der Kopfzeile) – Vorname/Nachname,
-  Kontakt-E-Mail/-Telefon sowie das eigene Passwort ändern.
+  Kontakt-Telefon sowie das eigene Passwort ändern. Die Kontakt-E-Mail ist die
+  Login-E-Mail und nicht änderbar; wer eine andere Adresse will, registriert
+  ein neues Konto.
 - **Päckli-Zusammensetzung** – was kommt in welchen Päckli-Typ (Erwachsene/Kinder).
 - **Admin** – Artikelliste (inkl. Menge je Päckli-Typ) und Ziele (Anzahl Päckli) verwalten.
 
@@ -38,10 +40,11 @@ schon genug da ist und was noch fehlt.
 2. Inhalt von [`schema.sql`](schema.sql) komplett einfügen und **Run** klicken.
    - Legt alle Tabellen, die Status-View, die Sicherheitsregeln **und** die
      Artikel aus der Liste 2025 als Startdaten an.
-   - `profiles` speichert `first_name`/`last_name` (Erstanmeldung) sowie die
-     optionalen Spalten `contact_email`/`contact_phone` (für Rückfragen).
-     Alles lässt sich im Reiter **Profil** ändern und ist für Admins im
-     Reiter **Admin** bei „Alle Käufe (nach Käufer:in)" sichtbar.
+   - `profiles` speichert `first_name`/`last_name` (Erstanmeldung), `contact_email`
+     (= Login-E-Mail, automatisch gesetzt, nicht editierbar) und `contact_phone`
+     (optional, editierbar). Vor-/Nachname und Telefon lassen sich im Reiter
+     **Profil** ändern; alles ist für Admins im Reiter **Admin** bei „Alle
+     Käufe (nach Käufer:in)" sichtbar.
 
 > **Bestehende Datenbank aktualisieren:** `schema.sql` **nicht** komplett neu
 > einspielen, sobald echte Daten (Artikel, Käufe) existieren – der Teardown-Teil
@@ -66,6 +69,8 @@ schon genug da ist und was noch fehlt.
 >   end if;
 > end $$;
 > alter table public.profiles drop column if exists name;
+> update public.profiles p set contact_email = u.email
+> from auth.users u where p.id = u.id and p.contact_email is distinct from u.email;
 > ```
 
 ### 3. E-Mail-Bestätigung deaktivieren

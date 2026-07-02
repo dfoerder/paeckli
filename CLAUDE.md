@@ -41,7 +41,7 @@ paeckli/
 
 | Tabelle | Inhalt |
 |---|---|
-| `profiles` | Teilnehmende: `first_name`, `last_name`, `contact_email`, `contact_phone` (für Rückfragen, beide optional), `is_admin`. 1:1 mit `auth.users`. |
+| `profiles` | Teilnehmende: `first_name`, `last_name`, `contact_email` (= Login-E-Mail, bei Registrierung gesetzt, nicht editierbar), `contact_phone` (optional, editierbar), `is_admin`. 1:1 mit `auth.users`. |
 | `campaign` | Singleton (id=1): `title`, `target_date`. |
 | `parcels` | Päckli-Typen (vorerst 2): `name` (Erwachsene/Kinder), `abbreviation` (E/K), `number` (Anzahl Päckli), `campaign_id`, `sort_order`. |
 | `articles` | `name`, `notes`, `sort_order`. |
@@ -63,10 +63,11 @@ paeckli/
 ## Ansichten (`showView(name)`)
 
 `overview` (Einkaufsstand mit Fortschrittsbalken), `buy` (Kauf eintragen),
-`mine` (eigene Käufe + löschen), `profile` (Vorname/Nachname, Kontakt-E-Mail/
--Telefon, Passwort ändern – erreichbar über Klick auf den Namen in der
-Kopfzeile, kein eigener Tab), `packages` (Päckli-Zusammensetzung je `parcel`
-aus `parcel_content`, Toggle dynamisch je Päckli-Typ), `admin` (Ziele; darunter
+`mine` (eigene Käufe + löschen), `profile` (Vorname/Nachname, Kontakt-Telefon,
+Passwort ändern; Kontakt-E-Mail nur Anzeige, = Login-E-Mail – erreichbar über
+Klick auf den Namen in der Kopfzeile, kein eigener Tab), `packages`
+(Päckli-Zusammensetzung je `parcel` aus `parcel_content`, Toggle dynamisch je
+Päckli-Typ), `admin` (Ziele; darunter
 „Alle Käufe (nach Käufer:in)" – nur für Admin, alle Käufe gruppiert nach
 Käufer:in inkl. Kontaktangabe für Rückfragen; darunter dieselbe
 Päckli-Darstellung wie `packages`, aber editierbar: Menge/Name/Notiz ändern,

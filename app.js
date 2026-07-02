@@ -193,9 +193,10 @@ async function saveOnboard() {
   const { data: { user } } = await db.auth.getUser();
   el('onboard-btn').disabled = true;
 
+  // Kontakt-E-Mail = Login-E-Mail, fest und unveränderbar (kein separates Feld nötig).
   const { data, error } = await db
     .from('profiles')
-    .insert({ id: user.id, first_name, last_name })
+    .insert({ id: user.id, first_name, last_name, contact_email: user.email })
     .select()
     .single();
 
@@ -461,7 +462,6 @@ function renderProfile() {
 async function saveProfile() {
   const first_name = el('profile-first-name').value.trim();
   const last_name = el('profile-last-name').value.trim();
-  const contact_email = el('profile-email').value.trim() || null;
   const contact_phone = el('profile-phone').value.trim() || null;
   const msg = el('profile-msg');
   if (!first_name || !last_name) {
@@ -470,9 +470,10 @@ async function saveProfile() {
     return;
   }
 
+  // contact_email bleibt unangetastet (= Login-E-Mail, unveränderbar).
   el('profile-btn').disabled = true;
   const { data, error } = await db.from('profiles')
-    .update({ first_name, last_name, contact_email, contact_phone })
+    .update({ first_name, last_name, contact_phone })
     .eq('id', state.profile.id)
     .select()
     .single();

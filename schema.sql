@@ -26,8 +26,8 @@ create table if not exists public.profiles (
   id             uuid primary key references auth.users on delete cascade,
   first_name     text not null,
   last_name      text not null,
-  contact_email  text,                                   -- E-Mail für Rückfragen (optional)
-  contact_phone  text,                                   -- Telefon für Rückfragen (optional)
+  contact_email  text,                                   -- = Login-E-Mail, bei Registrierung gesetzt, nicht editierbar
+  contact_phone  text,                                   -- Telefon für Rückfragen (optional, editierbar)
   is_admin       boolean not null default false,
   created_at     timestamptz not null default now()
 );
@@ -52,6 +52,10 @@ begin
   end if;
 end $$;
 alter table public.profiles drop column if exists name;
+-- contact_email an die tatsächliche Login-E-Mail angleichen (ab jetzt fest
+-- gekoppelt, nicht mehr frei editierbar). Gefahrlos mehrfach ausführbar.
+update public.profiles p set contact_email = u.email
+from auth.users u where p.id = u.id and p.contact_email is distinct from u.email;
 
 -- Kampagnen-Einstellungen (genau eine Zeile, id = 1).
 -- Die Anzahl Päckli liegt jetzt pro Typ in `parcels.number`.
