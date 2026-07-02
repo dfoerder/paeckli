@@ -589,6 +589,9 @@ function renderAdmin() {
     <input type="number" min="0" step="1" inputmode="numeric"
            data-parcel-goal="${p.id}" value="${p.number}">`).join('');
   el('goal-date').value = state.campaign.target_date || '';
+  const year = state.campaign.target_date
+    ? new Date(state.campaign.target_date + 'T00:00:00').getFullYear() : '';
+  el('goal-heading').textContent = year ? `Ziele ${year}` : 'Ziele';
 
   renderAllPurchases();
   renderAdminContent();
@@ -682,6 +685,7 @@ async function saveGoals() {
   msg.className = 'muted ok';
   msg.textContent = 'Gespeichert ✓';
   await loadData();
+  renderAdmin();
 }
 
 // Mengen je Päckli für einen Artikel speichern: >0 anlegen/ändern, 0 löschen.
