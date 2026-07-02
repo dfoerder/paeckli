@@ -18,7 +18,7 @@
     <header>
       <h1>🎁 Weihnachtspäckli</h1>
       <div id="user-bar" class="hidden">
-        <span id="user-name"></span>
+        <button id="user-name" class="link-btn"></button>
         <button id="logout-btn" class="link-btn">Abmelden</button>
       </div>
     </header>
@@ -48,11 +48,10 @@
       <div class="card">
         <h2>Willkommen!</h2>
         <p class="muted">Wie heisst du? (wird den anderen Teilnehmenden angezeigt)</p>
-        <input type="text" id="onboard-name" placeholder="Vorname Nachname" autocomplete="name">
-        <label for="onboard-email">E-Mail für Rückfragen (optional)</label>
-        <input type="email" id="onboard-email" placeholder="name@beispiel.ch" autocomplete="email">
-        <label for="onboard-phone">Telefon für Rückfragen (optional)</label>
-        <input type="tel" id="onboard-phone" placeholder="079 000 00 00" autocomplete="tel">
+        <label for="onboard-first-name">Vorname</label>
+        <input type="text" id="onboard-first-name" placeholder="Vorname" autocomplete="given-name">
+        <label for="onboard-last-name">Nachname</label>
+        <input type="text" id="onboard-last-name" placeholder="Nachname" autocomplete="family-name">
         <button id="onboard-btn">Speichern</button>
         <p id="onboard-msg" class="muted"></p>
       </div>
@@ -90,17 +89,35 @@
 
     <!-- Meine Käufe -->
     <main id="view-mine" class="view hidden">
-      <div class="card">
-        <label for="mine-email">Deine E-Mail für Rückfragen</label>
-        <input type="email" id="mine-email" placeholder="name@beispiel.ch" autocomplete="email">
-        <label for="mine-phone">Dein Telefon für Rückfragen</label>
-        <input type="tel" id="mine-phone" placeholder="079 000 00 00" autocomplete="tel">
-        <button id="mine-contact-btn" class="secondary">Kontakt speichern</button>
-        <p id="mine-contact-msg" class="muted"></p>
-      </div>
-
       <h2 class="view-title">Meine Käufe</h2>
       <div id="mine-list"></div>
+    </main>
+
+    <!-- Profil: persönliche Angaben, Kontakt, Passwort -->
+    <main id="view-profile" class="view hidden">
+      <div class="card">
+        <h2>Profil</h2>
+        <label for="profile-first-name">Vorname</label>
+        <input type="text" id="profile-first-name" placeholder="Vorname" autocomplete="given-name">
+        <label for="profile-last-name">Nachname</label>
+        <input type="text" id="profile-last-name" placeholder="Nachname" autocomplete="family-name">
+        <label for="profile-email">E-Mail für Rückfragen (optional)</label>
+        <input type="email" id="profile-email" placeholder="name@beispiel.ch" autocomplete="email">
+        <label for="profile-phone">Telefon für Rückfragen (optional)</label>
+        <input type="tel" id="profile-phone" placeholder="079 000 00 00" autocomplete="tel">
+        <button id="profile-btn">Speichern</button>
+        <p id="profile-msg" class="muted"></p>
+      </div>
+
+      <div class="card">
+        <h2>Passwort ändern</h2>
+        <label for="profile-password">Neues Passwort</label>
+        <input type="password" id="profile-password" placeholder="mind. 6 Zeichen" autocomplete="new-password">
+        <label for="profile-password2">Neues Passwort wiederholen</label>
+        <input type="password" id="profile-password2" placeholder="mind. 6 Zeichen" autocomplete="new-password">
+        <button id="profile-password-btn" class="secondary">Passwort ändern</button>
+        <p id="profile-password-msg" class="muted"></p>
+      </div>
     </main>
 
     <!-- Päckli-Zusammensetzung -->

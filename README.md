@@ -11,6 +11,8 @@ schon genug da ist und was noch fehlt.
 - **Übersicht** – Einkaufsstand aller Artikel mit Fortschrittsbalken (genug / fehlt noch).
 - **Kauf eintragen** – Artikel + Anzahl erfassen.
 - **Meine Käufe** – eigene Einträge ansehen und löschen.
+- **Profil** (Klick auf den eigenen Namen in der Kopfzeile) – Vorname/Nachname,
+  Kontakt-E-Mail/-Telefon sowie das eigene Passwort ändern.
 - **Päckli-Zusammensetzung** – was kommt in welchen Päckli-Typ (Erwachsene/Kinder).
 - **Admin** – Artikelliste (inkl. Menge je Päckli-Typ) und Ziele (Anzahl Päckli) verwalten.
 
@@ -36,19 +38,34 @@ schon genug da ist und was noch fehlt.
 2. Inhalt von [`schema.sql`](schema.sql) komplett einfügen und **Run** klicken.
    - Legt alle Tabellen, die Status-View, die Sicherheitsregeln **und** die
      Artikel aus der Liste 2025 als Startdaten an.
-   - `profiles` enthält die optionalen Spalten `contact_email` und
-     `contact_phone` (für Rückfragen). Sie werden bei der Erstanmeldung
-     abgefragt, lassen sich im Reiter **Käufe** ändern und sind für Admins im
+   - `profiles` speichert `first_name`/`last_name` (Erstanmeldung) sowie die
+     optionalen Spalten `contact_email`/`contact_phone` (für Rückfragen).
+     Alles lässt sich im Reiter **Profil** ändern und ist für Admins im
      Reiter **Admin** bei „Alle Käufe (nach Käufer:in)" sichtbar.
 
-> **Bestehende Datenbank aktualisieren:** Wenn das Schema schon einmal
-> eingespielt wurde und nur die Spalten `contact_email`/`contact_phone`
-> fehlen, genügt es, im SQL Editor auszuführen (in `schema.sql` bereits
-> enthalten):
+> **Bestehende Datenbank aktualisieren:** `schema.sql` **nicht** komplett neu
+> einspielen, sobald echte Daten (Artikel, Käufe) existieren – der Teardown-Teil
+> am Skriptanfang löscht `articles`/`parcels`/`parcel_content`/`purchases` und
+> baut sie mit den Beispieldaten neu auf (`profiles` bleibt zwar erhalten, der
+> Rest nicht). Für die `profiles`-Migration genügt es, nur diesen Ausschnitt aus
+> `schema.sql` separat im SQL Editor auszuführen:
 > ```sql
 > alter table public.profiles add column if not exists contact_email text;
 > alter table public.profiles add column if not exists contact_phone text;
 > alter table public.profiles drop column if exists contact;
+> alter table public.profiles add column if not exists first_name text;
+> alter table public.profiles add column if not exists last_name text;
+> do $$
+> begin
+>   if exists (select 1 from information_schema.columns
+>              where table_schema = 'public' and table_name = 'profiles' and column_name = 'name') then
+>     update public.profiles set
+>       first_name = coalesce(first_name, split_part(name, ' ', 1)),
+>       last_name  = coalesce(last_name, nullif(split_part(name, ' ', 2), ''))
+>     where name is not null and first_name is null;
+>   end if;
+> end $$;
+> alter table public.profiles drop column if exists name;
 > ```
 
 ### 3. E-Mail-Bestätigung deaktivieren

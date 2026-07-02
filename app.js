@@ -19,7 +19,7 @@ if (configured && window.supabase) {
 
 // ---------- Zustand ----------
 const state = {
-  profile: null,      // { id, name, is_admin }
+  profile: null,      // { id, first_name, last_name, contact_email, contact_phone, is_admin }
   campaign: null,     // { title, target_date }
   parcels: [],        // [{ id, name, abbreviation, number, sort_order }]
   articles: [],       // [{ id, name, notes, sort_order }]
@@ -45,6 +45,7 @@ const $$ = (sel) => Array.from(document.querySelectorAll(sel));
 const el = (id) => document.getElementById(id);
 const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) =>
   ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+const fullName = (p) => [p?.first_name, p?.last_name].filter(Boolean).join(' ');
 
 function show(id) { el(id)?.classList.remove('hidden'); }
 function hide(id) { el(id)?.classList.add('hidden'); }
@@ -60,6 +61,7 @@ function showView(name) {
   if (name === 'mine') renderMine();
   if (name === 'packages') renderPackages();
   if (name === 'admin') renderAdmin();
+  if (name === 'profile') renderProfile();
 }
 
 // ============================================================
@@ -95,7 +97,7 @@ async function handleSession(session) {
   if (!profile) {
     hideAll();
     show('view-onboard');
-    el('onboard-name').focus();
+    el('onboard-first-name').focus();
     return;
   }
 
@@ -120,7 +122,7 @@ function showLoggedOut() {
 
 function showLoggedIn() {
   hideAll();
-  el('user-name').textContent = state.profile.name;
+  el('user-name').textContent = fullName(state.profile);
   show('user-bar');
   show('tabs');
   $$('.admin-only').forEach((e) =>
@@ -183,18 +185,17 @@ async function register() {
 
 // ---------- Erstanmeldung: Name speichern ----------
 async function saveOnboard() {
-  const name = el('onboard-name').value.trim();
-  const contact_email = el('onboard-email').value.trim() || null;
-  const contact_phone = el('onboard-phone').value.trim() || null;
+  const first_name = el('onboard-first-name').value.trim();
+  const last_name = el('onboard-last-name').value.trim();
   const msg = el('onboard-msg');
-  if (!name) { msg.textContent = 'Bitte Namen eingeben.'; return; }
+  if (!first_name || !last_name) { msg.textContent = 'Bitte Vor- und Nachnamen eingeben.'; return; }
 
   const { data: { user } } = await db.auth.getUser();
   el('onboard-btn').disabled = true;
 
   const { data, error } = await db
     .from('profiles')
-    .insert({ id: user.id, name, contact_email, contact_phone })
+    .insert({ id: user.id, first_name, last_name })
     .select()
     .single();
 
@@ -246,11 +247,11 @@ async function loadData() {
   // damit man bei Rückfragen Kontakt aufnehmen kann.
   if (state.profile.is_admin) {
     const all = await db.from('purchases')
-      .select('*, articles(name), profiles(name, contact_email, contact_phone)')
+      .select('*, articles(name), profiles(first_name, last_name, contact_email, contact_phone)')
       .order('created_at', { ascending: false });
     if (all.error) console.error('loadData: allPurchases ->', all.error);
     state.allPurchases = (all.data || []).sort((a, b) =>
-      (a.profiles?.name || '').localeCompare(b.profiles?.name || '', 'de-CH'));
+      fullName(a.profiles).localeCompare(fullName(b.profiles), 'de-CH'));
   } else {
     state.allPurchases = [];
   }
@@ -368,11 +369,6 @@ async function submitBuy() {
 //  Ansicht: Meine Käufe
 // ============================================================
 function renderMine() {
-  // Eigene Kontaktangabe ins Feld übernehmen (leert eine evtl. alte Meldung).
-  el('mine-email').value = state.profile.contact_email || '';
-  el('mine-phone').value = state.profile.contact_phone || '';
-  el('mine-contact-msg').textContent = '';
-
   if (!state.purchases.length) {
     el('mine-list').innerHTML = '<p class="empty">Du hast noch nichts eingetragen.</p>';
     return;
@@ -408,7 +404,7 @@ function renderAllPurchases() {
   // Nach Käufer:in gruppieren (Reihenfolge aus der bereits sortierten Liste).
   const groups = [];
   for (const p of state.allPurchases) {
-    const name = p.profiles?.name || 'Unbekannt';
+    const name = fullName(p.profiles) || 'Unbekannt';
     let g = groups.find((x) => x.name === name);
     if (!g) {
       g = {
@@ -448,20 +444,72 @@ async function deletePurchase(id) {
   await reload();
 }
 
-// Eigene Kontaktangabe speichern (für Admin-Rückfragen sichtbar).
-async function saveContact() {
-  const contact_email = el('mine-email').value.trim() || null;
-  const contact_phone = el('mine-phone').value.trim() || null;
-  const msg = el('mine-contact-msg');
-  el('mine-contact-btn').disabled = true;
-  const { error } = await db.from('profiles')
-    .update({ contact_email, contact_phone }).eq('id', state.profile.id);
-  el('mine-contact-btn').disabled = false;
+// ============================================================
+//  Ansicht: Profil
+// ============================================================
+function renderProfile() {
+  el('profile-first-name').value = state.profile.first_name || '';
+  el('profile-last-name').value = state.profile.last_name || '';
+  el('profile-email').value = state.profile.contact_email || '';
+  el('profile-phone').value = state.profile.contact_phone || '';
+  el('profile-msg').textContent = '';
+  el('profile-password').value = '';
+  el('profile-password2').value = '';
+  el('profile-password-msg').textContent = '';
+}
+
+async function saveProfile() {
+  const first_name = el('profile-first-name').value.trim();
+  const last_name = el('profile-last-name').value.trim();
+  const contact_email = el('profile-email').value.trim() || null;
+  const contact_phone = el('profile-phone').value.trim() || null;
+  const msg = el('profile-msg');
+  if (!first_name || !last_name) {
+    msg.className = 'muted err';
+    msg.textContent = 'Bitte Vor- und Nachnamen eingeben.';
+    return;
+  }
+
+  el('profile-btn').disabled = true;
+  const { data, error } = await db.from('profiles')
+    .update({ first_name, last_name, contact_email, contact_phone })
+    .eq('id', state.profile.id)
+    .select()
+    .single();
+  el('profile-btn').disabled = false;
+
   if (error) { msg.className = 'muted err'; msg.textContent = 'Fehler: ' + error.message; return; }
-  state.profile.contact_email = contact_email;
-  state.profile.contact_phone = contact_phone;
+  state.profile = data;
+  el('user-name').textContent = fullName(state.profile);
   msg.className = 'muted ok';
   msg.textContent = 'Gespeichert ✓';
+}
+
+// Passwort selbst ändern (kein Mailversand, direkt via Supabase-Session).
+async function changePassword() {
+  const password = el('profile-password').value;
+  const password2 = el('profile-password2').value;
+  const msg = el('profile-password-msg');
+  if (!password || password.length < 6) {
+    msg.className = 'muted err';
+    msg.textContent = 'Passwort muss mind. 6 Zeichen haben.';
+    return;
+  }
+  if (password !== password2) {
+    msg.className = 'muted err';
+    msg.textContent = 'Passwörter stimmen nicht überein.';
+    return;
+  }
+
+  el('profile-password-btn').disabled = true;
+  const { error } = await db.auth.updateUser({ password });
+  el('profile-password-btn').disabled = false;
+
+  if (error) { msg.className = 'muted err'; msg.textContent = 'Fehler: ' + error.message; return; }
+  el('profile-password').value = '';
+  el('profile-password2').value = '';
+  msg.className = 'muted ok';
+  msg.textContent = 'Passwort geändert ✓';
 }
 
 // ============================================================
@@ -703,8 +751,10 @@ function wireEvents() {
   el('login-password')?.addEventListener('keydown', (e) => { if (e.key === 'Enter') login(); });
   el('onboard-btn')?.addEventListener('click', saveOnboard);
   el('logout-btn')?.addEventListener('click', logout);
+  el('user-name')?.addEventListener('click', () => showView('profile'));
   el('buy-btn')?.addEventListener('click', submitBuy);
-  el('mine-contact-btn')?.addEventListener('click', saveContact);
+  el('profile-btn')?.addEventListener('click', saveProfile);
+  el('profile-password-btn')?.addEventListener('click', changePassword);
   el('goal-btn')?.addEventListener('click', saveGoals);
   el('new-btn')?.addEventListener('click', addArticle);
 

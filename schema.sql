@@ -24,7 +24,8 @@ drop table if exists public.articles;
 -- Teilnehmende. Verknüpft 1:1 mit dem Supabase-Auth-Benutzer.
 create table if not exists public.profiles (
   id             uuid primary key references auth.users on delete cascade,
-  name           text not null,
+  first_name     text not null,
+  last_name      text not null,
   contact_email  text,                                   -- E-Mail für Rückfragen (optional)
   contact_phone  text,                                   -- Telefon für Rückfragen (optional)
   is_admin       boolean not null default false,
@@ -34,6 +35,23 @@ create table if not exists public.profiles (
 alter table public.profiles add column if not exists contact_email text;
 alter table public.profiles add column if not exists contact_phone text;
 alter table public.profiles drop column if exists contact;
+alter table public.profiles add column if not exists first_name text;
+alter table public.profiles add column if not exists last_name text;
+-- Best-effort Migration aus altem `name`-Feld (erstes Wort -> Vorname, Rest -> Nachname).
+-- Bei zusammengesetzten Nachnamen danach ggf. im Table Editor korrigieren.
+-- In einen DO-Block verpackt, damit das Skript beim erneuten Ausführen (nachdem
+-- `name` schon entfernt wurde) nicht mit "column does not exist" fehlschlägt.
+do $$
+begin
+  if exists (select 1 from information_schema.columns
+             where table_schema = 'public' and table_name = 'profiles' and column_name = 'name') then
+    update public.profiles set
+      first_name = coalesce(first_name, split_part(name, ' ', 1)),
+      last_name  = coalesce(last_name, nullif(split_part(name, ' ', 2), ''))
+    where name is not null and first_name is null;
+  end if;
+end $$;
+alter table public.profiles drop column if exists name;
 
 -- Kampagnen-Einstellungen (genau eine Zeile, id = 1).
 -- Die Anzahl Päckli liegt jetzt pro Typ in `parcels.number`.
