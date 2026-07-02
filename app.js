@@ -589,9 +589,11 @@ function renderAdmin() {
     <input type="number" min="0" step="1" inputmode="numeric"
            data-parcel-goal="${p.id}" value="${p.number}">`).join('');
   el('goal-date').value = state.campaign.target_date || '';
-  const year = state.campaign.target_date
-    ? new Date(state.campaign.target_date + 'T00:00:00').getFullYear() : '';
-  el('goal-heading').textContent = year ? `Ziele ${year}` : 'Ziele';
+  const ds = state.campaign.target_date
+    ? new Date(state.campaign.target_date + 'T00:00:00')
+        .toLocaleDateString('de-CH', { day: 'numeric', month: 'long', year: 'numeric' })
+    : '';
+  el('goal-heading').textContent = ds ? `Ziele ${ds}` : 'Ziele';
 
   renderAllPurchases();
   renderAdminContent();
