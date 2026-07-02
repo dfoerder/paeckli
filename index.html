@@ -46,6 +46,8 @@
         <h2>Willkommen!</h2>
         <p class="muted">Wie heisst du? (wird den anderen Teilnehmenden angezeigt)</p>
         <input type="text" id="onboard-name" placeholder="Vorname Nachname" autocomplete="name">
+        <label for="onboard-contact">Kontakt für Rückfragen (optional)</label>
+        <input type="text" id="onboard-contact" placeholder="Tel. oder E-Mail" autocomplete="tel">
         <button id="onboard-btn">Speichern</button>
         <p id="onboard-msg" class="muted"></p>
       </div>
@@ -83,6 +85,13 @@
 
     <!-- Meine Käufe -->
     <main id="view-mine" class="view hidden">
+      <div class="card">
+        <label for="mine-contact">Deine Kontaktangabe (für Rückfragen)</label>
+        <input type="text" id="mine-contact" placeholder="Tel. oder E-Mail" autocomplete="tel">
+        <button id="mine-contact-btn" class="secondary">Kontakt speichern</button>
+        <p id="mine-contact-msg" class="muted"></p>
+      </div>
+
       <h2 class="view-title">Meine Käufe</h2>
       <div id="mine-list"></div>
     </main>
@@ -104,6 +113,9 @@
         <button id="goal-btn">Ziele speichern</button>
         <p id="goal-msg" class="muted"></p>
       </div>
+
+      <h2 class="view-title">Alle Käufe (nach Käufer:in)</h2>
+      <div id="admin-all-list"></div>
 
       <h2 class="view-title">Päckli-Inhalt</h2>
       <div id="admin-pkg-toggle" class="pkg-toggle"></div>

@@ -26,6 +26,7 @@ const state = {
   content: [],        // parcel_content: [{ parcel_id, article_id, quantity }]
   status: [],         // aus View article_status
   purchases: [],      // eigene Käufe (mit Artikelname)
+  allPurchases: [],   // alle Käufe (nur Admin; mit Artikel- und Käufer:in-Name)
   view: 'overview',
   pkgParcel: null,    // id des in der Päckli-Ansicht gewählten Päckli-Typs
   adminParcel: null   // id des im Admin gewählten Päckli-Typs (unabhängig)
@@ -155,6 +156,7 @@ async function sendMagicLink() {
 // ---------- Erstanmeldung: Name speichern ----------
 async function saveOnboard() {
   const name = el('onboard-name').value.trim();
+  const contact = el('onboard-contact').value.trim() || null;
   const msg = el('onboard-msg');
   if (!name) { msg.textContent = 'Bitte Namen eingeben.'; return; }
 
@@ -163,7 +165,7 @@ async function saveOnboard() {
 
   const { data, error } = await db
     .from('profiles')
-    .insert({ id: user.id, name })
+    .insert({ id: user.id, name, contact })
     .select()
     .single();
 
@@ -210,6 +212,19 @@ async function loadData() {
   state.content = content.data || [];
   state.status = status.data || [];
   state.purchases = purchases.data || [];
+
+  // Admin: zusätzlich alle Käufe laden (mit Käufer:in-Name), nach Käufer:in sortiert,
+  // damit man bei Rückfragen Kontakt aufnehmen kann.
+  if (state.profile.is_admin) {
+    const all = await db.from('purchases')
+      .select('*, articles(name), profiles(name, contact)')
+      .order('created_at', { ascending: false });
+    if (all.error) console.error('loadData: allPurchases ->', all.error);
+    state.allPurchases = (all.data || []).sort((a, b) =>
+      (a.profiles?.name || '').localeCompare(b.profiles?.name || '', 'de-CH'));
+  } else {
+    state.allPurchases = [];
+  }
 
   // gewähltes Päckli (Päckli-Ansicht & Admin) initialisieren / gültig halten.
   if (!state.parcels.some((p) => p.id === state.pkgParcel)) {
@@ -324,6 +339,10 @@ async function submitBuy() {
 //  Ansicht: Meine Käufe
 // ============================================================
 function renderMine() {
+  // Eigene Kontaktangabe ins Feld übernehmen (leert eine evtl. alte Meldung).
+  el('mine-contact').value = state.profile.contact || '';
+  el('mine-contact-msg').textContent = '';
+
   if (!state.purchases.length) {
     el('mine-list').innerHTML = '<p class="empty">Du hast noch nichts eingetragen.</p>';
     return;
@@ -347,11 +366,61 @@ function renderMine() {
     b.addEventListener('click', () => deletePurchase(b.dataset.del)));
 }
 
+// Admin: alle Käufe, nach Käufer:in gruppiert (state.allPurchases ist bereits
+// nach Käufer:in-Name sortiert), damit man bei Bedarf Kontakt aufnehmen kann.
+function renderAllPurchases() {
+  const box = el('admin-all-list');
+  if (!state.allPurchases.length) {
+    box.innerHTML = '<p class="empty">Noch keine Käufe erfasst.</p>';
+    return;
+  }
+
+  // Nach Käufer:in gruppieren (Reihenfolge aus der bereits sortierten Liste).
+  const groups = [];
+  for (const p of state.allPurchases) {
+    const name = p.profiles?.name || 'Unbekannt';
+    let g = groups.find((x) => x.name === name);
+    if (!g) { g = { name, contact: p.profiles?.contact || null, items: [] }; groups.push(g); }
+    g.items.push(p);
+  }
+
+  box.innerHTML = groups.map((g) => `
+    <div class="buyer-group">
+      <h3 class="buyer-name">${esc(g.name)} <span class="muted">(${g.items.length})</span></h3>
+      ${g.contact ? `<p class="buyer-contact">📞 ${esc(g.contact)}</p>` : ''}
+      ${g.items.map((p) => {
+        const date = new Date(p.created_at).toLocaleDateString('de-CH');
+        return `
+          <div class="item">
+            <div class="head">
+              <span class="name">${esc(p.articles?.name || 'Artikel')}</span>
+              <span class="count">${p.quantity} Stk.</span>
+            </div>
+            <div class="sub">${date}${p.note ? ' · ' + esc(p.note) : ''}</div>
+          </div>`;
+      }).join('')}
+    </div>`).join('');
+}
+
 async function deletePurchase(id) {
   if (!confirm('Diesen Kauf löschen?')) return;
   const { error } = await db.from('purchases').delete().eq('id', id);
   if (error) { alert('Fehler: ' + error.message); return; }
   await reload();
+}
+
+// Eigene Kontaktangabe speichern (für Admin-Rückfragen sichtbar).
+async function saveContact() {
+  const contact = el('mine-contact').value.trim() || null;
+  const msg = el('mine-contact-msg');
+  el('mine-contact-btn').disabled = true;
+  const { error } = await db.from('profiles')
+    .update({ contact }).eq('id', state.profile.id);
+  el('mine-contact-btn').disabled = false;
+  if (error) { msg.className = 'muted err'; msg.textContent = 'Fehler: ' + error.message; return; }
+  state.profile.contact = contact;
+  msg.className = 'muted ok';
+  msg.textContent = 'Gespeichert ✓';
 }
 
 // ============================================================
@@ -410,6 +479,7 @@ function renderAdmin() {
            data-parcel-goal="${p.id}" value="${p.number}">`).join('');
   el('goal-date').value = state.campaign.target_date || '';
 
+  renderAllPurchases();
   renderAdminContent();
 }
 
@@ -592,6 +662,7 @@ function wireEvents() {
   el('onboard-btn')?.addEventListener('click', saveOnboard);
   el('logout-btn')?.addEventListener('click', logout);
   el('buy-btn')?.addEventListener('click', submitBuy);
+  el('mine-contact-btn')?.addEventListener('click', saveContact);
   el('goal-btn')?.addEventListener('click', saveGoals);
   el('new-btn')?.addEventListener('click', addArticle);
 

@@ -25,9 +25,12 @@ drop table if exists public.articles;
 create table if not exists public.profiles (
   id          uuid primary key references auth.users on delete cascade,
   name        text not null,
+  contact     text,                                      -- Kontaktangabe (Tel./E-Mail) für Rückfragen
   is_admin    boolean not null default false,
   created_at  timestamptz not null default now()
 );
+-- Migration für bestehende Deployments (Tabelle wird nicht neu erstellt).
+alter table public.profiles add column if not exists contact text;
 
 -- Kampagnen-Einstellungen (genau eine Zeile, id = 1).
 -- Die Anzahl Päckli liegt jetzt pro Typ in `parcels.number`.

@@ -38,7 +38,7 @@ paeckli/
 
 | Tabelle | Inhalt |
 |---|---|
-| `profiles` | Teilnehmende: `name`, `is_admin`. 1:1 mit `auth.users`. |
+| `profiles` | Teilnehmende: `name`, `contact` (Tel./E-Mail für Rückfragen, optional), `is_admin`. 1:1 mit `auth.users`. |
 | `campaign` | Singleton (id=1): `title`, `target_date`. |
 | `parcels` | Päckli-Typen (vorerst 2): `name` (Erwachsene/Kinder), `abbreviation` (E/K), `number` (Anzahl Päckli), `campaign_id`, `sort_order`. |
 | `articles` | `name`, `notes`, `sort_order`. |
@@ -60,11 +60,14 @@ paeckli/
 ## Ansichten (`showView(name)`)
 
 `overview` (Einkaufsstand mit Fortschrittsbalken), `buy` (Kauf eintragen),
-`mine` (eigene Käufe + löschen), `packages` (Päckli-Zusammensetzung je `parcel`
-aus `parcel_content`, Toggle dynamisch je Päckli-Typ), `admin` (Ziele; darunter
-dieselbe Päckli-Darstellung wie `packages`, aber editierbar: Menge/Name/Notiz
-ändern, „Aus Päckli entfernen" = nur `parcel_content`-Zeile, „Artikel löschen" =
-ganzer Artikel; unten neuer Artikel fürs gewählte Päckli, Reuse-by-Name).
+`mine` (eigene Käufe + löschen, eigene Kontaktangabe pflegen), `packages`
+(Päckli-Zusammensetzung je `parcel` aus `parcel_content`, Toggle dynamisch je
+Päckli-Typ), `admin` (Ziele; darunter „Alle Käufe (nach Käufer:in)" – nur für
+Admin, alle Käufe gruppiert nach Käufer:in inkl. Kontaktangabe für Rückfragen;
+darunter dieselbe Päckli-Darstellung wie `packages`, aber editierbar:
+Menge/Name/Notiz ändern, „Aus Päckli entfernen" = nur `parcel_content`-Zeile,
+„Artikel löschen" = ganzer Artikel; unten neuer Artikel fürs gewählte Päckli,
+Reuse-by-Name).
 
 ## State-Objekt
 
