@@ -23,14 +23,17 @@ drop table if exists public.articles;
 
 -- Teilnehmende. Verknüpft 1:1 mit dem Supabase-Auth-Benutzer.
 create table if not exists public.profiles (
-  id          uuid primary key references auth.users on delete cascade,
-  name        text not null,
-  contact     text,                                      -- Kontaktangabe (Tel./E-Mail) für Rückfragen
-  is_admin    boolean not null default false,
-  created_at  timestamptz not null default now()
+  id             uuid primary key references auth.users on delete cascade,
+  name           text not null,
+  contact_email  text,                                   -- E-Mail für Rückfragen (optional)
+  contact_phone  text,                                   -- Telefon für Rückfragen (optional)
+  is_admin       boolean not null default false,
+  created_at     timestamptz not null default now()
 );
 -- Migration für bestehende Deployments (Tabelle wird nicht neu erstellt).
-alter table public.profiles add column if not exists contact text;
+alter table public.profiles add column if not exists contact_email text;
+alter table public.profiles add column if not exists contact_phone text;
+alter table public.profiles drop column if exists contact;
 
 -- Kampagnen-Einstellungen (genau eine Zeile, id = 1).
 -- Die Anzahl Päckli liegt jetzt pro Typ in `parcels.number`.

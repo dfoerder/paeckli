@@ -41,7 +41,7 @@ paeckli/
 
 | Tabelle | Inhalt |
 |---|---|
-| `profiles` | Teilnehmende: `name`, `contact` (Tel./E-Mail für Rückfragen, optional), `is_admin`. 1:1 mit `auth.users`. |
+| `profiles` | Teilnehmende: `name`, `contact_email`, `contact_phone` (für Rückfragen, beide optional), `is_admin`. 1:1 mit `auth.users`. |
 | `campaign` | Singleton (id=1): `title`, `target_date`. |
 | `parcels` | Päckli-Typen (vorerst 2): `name` (Erwachsene/Kinder), `abbreviation` (E/K), `number` (Anzahl Päckli), `campaign_id`, `sort_order`. |
 | `articles` | `name`, `notes`, `sort_order`. |

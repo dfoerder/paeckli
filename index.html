@@ -49,8 +49,10 @@
         <h2>Willkommen!</h2>
         <p class="muted">Wie heisst du? (wird den anderen Teilnehmenden angezeigt)</p>
         <input type="text" id="onboard-name" placeholder="Vorname Nachname" autocomplete="name">
-        <label for="onboard-contact">Kontakt für Rückfragen (optional)</label>
-        <input type="text" id="onboard-contact" placeholder="Tel. oder E-Mail" autocomplete="tel">
+        <label for="onboard-email">E-Mail für Rückfragen (optional)</label>
+        <input type="email" id="onboard-email" placeholder="name@beispiel.ch" autocomplete="email">
+        <label for="onboard-phone">Telefon für Rückfragen (optional)</label>
+        <input type="tel" id="onboard-phone" placeholder="079 000 00 00" autocomplete="tel">
         <button id="onboard-btn">Speichern</button>
         <p id="onboard-msg" class="muted"></p>
       </div>
@@ -89,8 +91,10 @@
     <!-- Meine Käufe -->
     <main id="view-mine" class="view hidden">
       <div class="card">
-        <label for="mine-contact">Deine Kontaktangabe (für Rückfragen)</label>
-        <input type="text" id="mine-contact" placeholder="Tel. oder E-Mail" autocomplete="tel">
+        <label for="mine-email">Deine E-Mail für Rückfragen</label>
+        <input type="email" id="mine-email" placeholder="name@beispiel.ch" autocomplete="email">
+        <label for="mine-phone">Dein Telefon für Rückfragen</label>
+        <input type="tel" id="mine-phone" placeholder="079 000 00 00" autocomplete="tel">
         <button id="mine-contact-btn" class="secondary">Kontakt speichern</button>
         <p id="mine-contact-msg" class="muted"></p>
       </div>

@@ -1,5 +1,5 @@
 // Cache-Version bei Änderungen an den App-Dateien manuell hochzählen.
-const CACHE_NAME = 'weihnachtspaeckli-v8';
+const CACHE_NAME = 'weihnachtspaeckli-v9';
 const ASSETS = [
   './',
   './index.html',

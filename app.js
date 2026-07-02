@@ -184,7 +184,8 @@ async function register() {
 // ---------- Erstanmeldung: Name speichern ----------
 async function saveOnboard() {
   const name = el('onboard-name').value.trim();
-  const contact = el('onboard-contact').value.trim() || null;
+  const contact_email = el('onboard-email').value.trim() || null;
+  const contact_phone = el('onboard-phone').value.trim() || null;
   const msg = el('onboard-msg');
   if (!name) { msg.textContent = 'Bitte Namen eingeben.'; return; }
 
@@ -193,7 +194,7 @@ async function saveOnboard() {
 
   const { data, error } = await db
     .from('profiles')
-    .insert({ id: user.id, name, contact })
+    .insert({ id: user.id, name, contact_email, contact_phone })
     .select()
     .single();
 
@@ -245,7 +246,7 @@ async function loadData() {
   // damit man bei Rückfragen Kontakt aufnehmen kann.
   if (state.profile.is_admin) {
     const all = await db.from('purchases')
-      .select('*, articles(name), profiles(name, contact)')
+      .select('*, articles(name), profiles(name, contact_email, contact_phone)')
       .order('created_at', { ascending: false });
     if (all.error) console.error('loadData: allPurchases ->', all.error);
     state.allPurchases = (all.data || []).sort((a, b) =>
@@ -368,7 +369,8 @@ async function submitBuy() {
 // ============================================================
 function renderMine() {
   // Eigene Kontaktangabe ins Feld übernehmen (leert eine evtl. alte Meldung).
-  el('mine-contact').value = state.profile.contact || '';
+  el('mine-email').value = state.profile.contact_email || '';
+  el('mine-phone').value = state.profile.contact_phone || '';
   el('mine-contact-msg').textContent = '';
 
   if (!state.purchases.length) {
@@ -408,14 +410,23 @@ function renderAllPurchases() {
   for (const p of state.allPurchases) {
     const name = p.profiles?.name || 'Unbekannt';
     let g = groups.find((x) => x.name === name);
-    if (!g) { g = { name, contact: p.profiles?.contact || null, items: [] }; groups.push(g); }
+    if (!g) {
+      g = {
+        name,
+        contactEmail: p.profiles?.contact_email || null,
+        contactPhone: p.profiles?.contact_phone || null,
+        items: []
+      };
+      groups.push(g);
+    }
     g.items.push(p);
   }
 
   box.innerHTML = groups.map((g) => `
     <div class="buyer-group">
       <h3 class="buyer-name">${esc(g.name)} <span class="muted">(${g.items.length})</span></h3>
-      ${g.contact ? `<p class="buyer-contact">📞 ${esc(g.contact)}</p>` : ''}
+      ${g.contactEmail ? `<p class="buyer-contact">📧 ${esc(g.contactEmail)}</p>` : ''}
+      ${g.contactPhone ? `<p class="buyer-contact">📞 ${esc(g.contactPhone)}</p>` : ''}
       ${g.items.map((p) => {
         const date = new Date(p.created_at).toLocaleDateString('de-CH');
         return `
@@ -439,14 +450,16 @@ async function deletePurchase(id) {
 
 // Eigene Kontaktangabe speichern (für Admin-Rückfragen sichtbar).
 async function saveContact() {
-  const contact = el('mine-contact').value.trim() || null;
+  const contact_email = el('mine-email').value.trim() || null;
+  const contact_phone = el('mine-phone').value.trim() || null;
   const msg = el('mine-contact-msg');
   el('mine-contact-btn').disabled = true;
   const { error } = await db.from('profiles')
-    .update({ contact }).eq('id', state.profile.id);
+    .update({ contact_email, contact_phone }).eq('id', state.profile.id);
   el('mine-contact-btn').disabled = false;
   if (error) { msg.className = 'muted err'; msg.textContent = 'Fehler: ' + error.message; return; }
-  state.profile.contact = contact;
+  state.profile.contact_email = contact_email;
+  state.profile.contact_phone = contact_phone;
   msg.className = 'muted ok';
   msg.textContent = 'Gespeichert ✓';
 }

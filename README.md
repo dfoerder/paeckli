@@ -36,15 +36,20 @@ schon genug da ist und was noch fehlt.
 2. Inhalt von [`schema.sql`](schema.sql) komplett einfügen und **Run** klicken.
    - Legt alle Tabellen, die Status-View, die Sicherheitsregeln **und** die
      Artikel aus der Liste 2025 als Startdaten an.
-   - `profiles` enthält eine optionale Spalte `contact` (Tel./E-Mail für
-     Rückfragen). Sie wird bei der Erstanmeldung abgefragt, lässt sich im
-     Reiter **Käufe** ändern und ist für Admins im Reiter **Admin** bei
-     „Alle Käufe (nach Käufer:in)" sichtbar.
+   - `profiles` enthält die optionalen Spalten `contact_email` und
+     `contact_phone` (für Rückfragen). Sie werden bei der Erstanmeldung
+     abgefragt, lassen sich im Reiter **Käufe** ändern und sind für Admins im
+     Reiter **Admin** bei „Alle Käufe (nach Käufer:in)" sichtbar.
 
 > **Bestehende Datenbank aktualisieren:** Wenn das Schema schon einmal
-> eingespielt wurde und nur die Spalte `contact` fehlt, genügt es, im SQL
-> Editor `alter table public.profiles add column if not exists contact text;`
-> auszuführen (in `schema.sql` bereits enthalten).
+> eingespielt wurde und nur die Spalten `contact_email`/`contact_phone`
+> fehlen, genügt es, im SQL Editor auszuführen (in `schema.sql` bereits
+> enthalten):
+> ```sql
+> alter table public.profiles add column if not exists contact_email text;
+> alter table public.profiles add column if not exists contact_phone text;
+> alter table public.profiles drop column if exists contact;
+> ```
 
 ### 3. E-Mail-Bestätigung deaktivieren
 
