@@ -9,8 +9,8 @@ schon genug da ist und was noch fehlt.
 - **Login per E-Mail + Passwort** – kein Mailversand, kein Rate-Limit. Passwort
   vergessen? Admin setzt es über die Supabase Admin-API neu (siehe unten).
 - **Übersicht** – Einkaufsstand aller Artikel mit Fortschrittsbalken (genug / fehlt noch).
-- **Kauf eintragen** – Artikel + Anzahl erfassen.
-- **Meine Käufe** – eigene Einträge ansehen und löschen.
+- **Deine Käufe** – Kauf eintragen (Artikel + Anzahl) und darunter eigene
+  Einträge ansehen und löschen, alles in einem Tab.
 - **Profil** (Klick auf den eigenen Namen in der Kopfzeile) – Vorname/Nachname,
   Kontakt-Telefon sowie das eigene Passwort ändern. Die Kontakt-E-Mail ist die
   Login-E-Mail und nicht änderbar; wer eine andere Adresse will, registriert

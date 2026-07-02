@@ -62,10 +62,11 @@ paeckli/
 
 ## Ansichten (`showView(name)`)
 
-`overview` (Einkaufsstand mit Fortschrittsbalken), `buy` (Kauf eintragen),
-`mine` (eigene Käufe + löschen), `profile` (Vorname/Nachname, Kontakt-Telefon,
-Passwort ändern; Kontakt-E-Mail nur Anzeige, = Login-E-Mail – erreichbar über
-Klick auf den Namen in der Kopfzeile, kein eigener Tab), `packages`
+`overview` (Einkaufsstand mit Fortschrittsbalken), `mine` (Tab „Deine Käufe":
+oben Kauf eintragen, darunter eigene Käufe + löschen), `profile`
+(Vorname/Nachname, Kontakt-Telefon, Passwort ändern; Kontakt-E-Mail nur
+Anzeige, = Login-E-Mail – erreichbar über Klick auf den Namen in der
+Kopfzeile, kein eigener Tab), `packages`
 (Päckli-Zusammensetzung je `parcel` aus `parcel_content`, Toggle dynamisch je
 Päckli-Typ), `admin` (nur für Admin; interne Unterseiten via
 `state.adminPage` + 3 Buttons oben, jeweils nur eine sichtbar: **Ziele**

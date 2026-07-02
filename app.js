@@ -58,8 +58,7 @@ function showView(name) {
   $$('#tabs .tab').forEach((t) =>
     t.classList.toggle('active', t.dataset.view === name));
   if (name === 'overview') renderOverview();
-  if (name === 'buy') renderBuyOptions();
-  if (name === 'mine') renderMine();
+  if (name === 'mine') { renderBuyOptions(); renderMine(); }
   if (name === 'packages') renderPackages();
   if (name === 'admin') renderAdmin();
   if (name === 'profile') renderProfile();
@@ -365,6 +364,7 @@ async function submitBuy() {
   el('buy-qty').value = '1';
   el('buy-note').value = '';
   await loadData();
+  renderMine();
 }
 
 // ============================================================

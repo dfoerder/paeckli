@@ -60,8 +60,7 @@
     <!-- Haupt-Navigation -->
     <nav id="tabs" class="hidden">
       <button class="tab active" data-view="overview">Übersicht</button>
-      <button class="tab" data-view="buy">Kauf</button>
-      <button class="tab" data-view="mine">Käufe</button>
+      <button class="tab" data-view="mine">Deine Käufe</button>
       <button class="tab" data-view="packages">Päckli</button>
       <button class="tab admin-only hidden" data-view="admin">Admin</button>
     </nav>
@@ -72,8 +71,8 @@
       <div id="overview-list"></div>
     </main>
 
-    <!-- Kauf eintragen -->
-    <main id="view-buy" class="view hidden">
+    <!-- Deine Käufe: Kauf eintragen + eigene Käufe -->
+    <main id="view-mine" class="view hidden">
       <div class="card">
         <h2>Kauf eintragen</h2>
         <label for="buy-article">Artikel</label>
@@ -85,11 +84,8 @@
         <button id="buy-btn">Eintragen</button>
         <p id="buy-msg" class="muted"></p>
       </div>
-    </main>
 
-    <!-- Meine Käufe -->
-    <main id="view-mine" class="view hidden">
-      <h2 class="view-title">Meine Käufe</h2>
+      <h2 class="view-title">Deine Käufe</h2>
       <div id="mine-list"></div>
     </main>
 
