@@ -29,7 +29,8 @@ const state = {
   allPurchases: [],   // alle Käufe (nur Admin; mit Artikel- und Käufer:in-Name)
   view: 'overview',
   pkgParcel: null,    // id des in der Päckli-Ansicht gewählten Päckli-Typs
-  adminParcel: null   // id des im Admin gewählten Päckli-Typs (unabhängig)
+  adminParcel: null,  // id des im Admin gewählten Päckli-Typs (unabhängig)
+  adminPage: 'goals'  // aktive Unterseite im Admin-Tab: goals | purchases | content
 };
 
 // Menge eines Artikels in einem bestimmten Päckli-Typ (0, falls nicht enthalten).
@@ -571,6 +572,17 @@ function renderAdmin() {
 
   renderAllPurchases();
   renderAdminContent();
+
+  // Sub-Navigation: nur die gewählte Admin-Unterseite anzeigen.
+  $$('#admin-nav .pkg-btn').forEach((b) =>
+    b.classList.toggle('active', b.dataset.adminPage === state.adminPage));
+  $$('.admin-page').forEach((p) =>
+    p.classList.toggle('hidden', p.id !== 'admin-page-' + state.adminPage));
+}
+
+function setAdminPage(page) {
+  state.adminPage = page;
+  renderAdmin();
 }
 
 function setAdminParcel(id) {
@@ -758,6 +770,8 @@ function wireEvents() {
   el('profile-password-btn')?.addEventListener('click', changePassword);
   el('goal-btn')?.addEventListener('click', saveGoals);
   el('new-btn')?.addEventListener('click', addArticle);
+  $$('#admin-nav .pkg-btn').forEach((b) =>
+    b.addEventListener('click', () => setAdminPage(b.dataset.adminPage)));
 
   $$('#tabs .tab').forEach((t) =>
     t.addEventListener('click', () => showView(t.dataset.view)));

@@ -67,12 +67,13 @@ paeckli/
 Passwort ändern; Kontakt-E-Mail nur Anzeige, = Login-E-Mail – erreichbar über
 Klick auf den Namen in der Kopfzeile, kein eigener Tab), `packages`
 (Päckli-Zusammensetzung je `parcel` aus `parcel_content`, Toggle dynamisch je
-Päckli-Typ), `admin` (Ziele; darunter
-„Alle Käufe (nach Käufer:in)" – nur für Admin, alle Käufe gruppiert nach
-Käufer:in inkl. Kontaktangabe für Rückfragen; darunter dieselbe
+Päckli-Typ), `admin` (nur für Admin; interne Unterseiten via
+`state.adminPage` + 3 Buttons oben, jeweils nur eine sichtbar: **Ziele**
+(Anzahl Päckli je Typ, Stichtag), **Alle Käufe** (alle Käufe gruppiert nach
+Käufer:in inkl. Kontaktangabe für Rückfragen), **Päckli-Inhalt** (dieselbe
 Päckli-Darstellung wie `packages`, aber editierbar: Menge/Name/Notiz ändern,
 „Aus Päckli entfernen" = nur `parcel_content`-Zeile, „Artikel löschen" =
-ganzer Artikel; unten neuer Artikel fürs gewählte Päckli, Reuse-by-Name).
+ganzer Artikel; unten neuer Artikel fürs gewählte Päckli, Reuse-by-Name)).
 
 ## State-Objekt
 

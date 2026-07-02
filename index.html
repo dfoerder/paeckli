@@ -128,34 +128,46 @@
 
     <!-- Admin -->
     <main id="view-admin" class="view hidden">
-      <div class="card">
-        <h2>Ziele</h2>
-        <p class="muted" style="margin:0 0 8px">Anzahl Päckli je Typ.</p>
-        <div id="goal-parcels"></div>
-        <label for="goal-date">Stichtag (bis wann fertig)</label>
-        <input type="date" id="goal-date">
-        <button id="goal-btn">Ziele speichern</button>
-        <p id="goal-msg" class="muted"></p>
+      <div id="admin-nav" class="pkg-toggle">
+        <button class="pkg-btn" data-admin-page="goals">Ziele</button>
+        <button class="pkg-btn" data-admin-page="purchases">Alle Käufe</button>
+        <button class="pkg-btn" data-admin-page="content">Päckli-Inhalt</button>
       </div>
 
-      <h2 class="view-title">Alle Käufe (nach Käufer:in)</h2>
-      <div id="admin-all-list"></div>
+      <div id="admin-page-goals" class="admin-page">
+        <div class="card">
+          <h2>Ziele</h2>
+          <p class="muted" style="margin:0 0 8px">Anzahl Päckli je Typ.</p>
+          <div id="goal-parcels"></div>
+          <label for="goal-date">Stichtag (bis wann fertig)</label>
+          <input type="date" id="goal-date">
+          <button id="goal-btn">Ziele speichern</button>
+          <p id="goal-msg" class="muted"></p>
+        </div>
+      </div>
 
-      <h2 class="view-title">Päckli-Inhalt</h2>
-      <div id="admin-pkg-toggle" class="pkg-toggle"></div>
-      <div id="admin-content"></div>
+      <div id="admin-page-purchases" class="admin-page">
+        <h2 class="view-title">Alle Käufe (nach Käufer:in)</h2>
+        <div id="admin-all-list"></div>
+      </div>
 
-      <div class="card">
-        <h3>Neuer Artikel</h3>
-        <p id="new-hint" class="muted" style="margin:0 0 8px"></p>
-        <label for="new-name">Name</label>
-        <input type="text" id="new-name" placeholder="Artikelname">
-        <label for="new-qty">Menge in diesem Päckli</label>
-        <input type="number" id="new-qty" min="1" step="1" value="1" inputmode="numeric">
-        <label for="new-notes">Notiz</label>
-        <input type="text" id="new-notes" placeholder="optional">
-        <button id="new-btn">Artikel hinzufügen</button>
-        <p id="new-msg" class="muted"></p>
+      <div id="admin-page-content" class="admin-page">
+        <h2 class="view-title">Päckli-Inhalt</h2>
+        <div id="admin-pkg-toggle" class="pkg-toggle"></div>
+        <div id="admin-content"></div>
+
+        <div class="card">
+          <h3>Neuer Artikel</h3>
+          <p id="new-hint" class="muted" style="margin:0 0 8px"></p>
+          <label for="new-name">Name</label>
+          <input type="text" id="new-name" placeholder="Artikelname">
+          <label for="new-qty">Menge in diesem Päckli</label>
+          <input type="number" id="new-qty" min="1" step="1" value="1" inputmode="numeric">
+          <label for="new-notes">Notiz</label>
+          <input type="text" id="new-notes" placeholder="optional">
+          <button id="new-btn">Artikel hinzufügen</button>
+          <p id="new-msg" class="muted"></p>
+        </div>
       </div>
     </main>
   </div>
