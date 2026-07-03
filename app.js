@@ -732,11 +732,9 @@ function renderArticleList() {
       <div class="item">
         <div class="head">
           <span class="name">${esc(a.name)}</span>
+          <button class="secondary btn-sm" data-editart="${a.id}">Ändern</button>
         </div>
         ${a.notes ? `<div class="sub">${esc(a.notes)}</div>` : ''}
-        <div class="row-actions">
-          <button class="secondary" data-editart="${a.id}">Ändern</button>
-        </div>
       </div>`).join('')}`).join('');
 
   $$('#admin-articles-list [data-editart]').forEach((b) =>

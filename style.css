@@ -170,6 +170,14 @@ button.ghost {
   border: 1px solid var(--border);
 }
 button:disabled { opacity: 0.5; }
+button.btn-sm {
+  width: auto;
+  margin-top: 0;
+  min-height: 36px;
+  padding: 6px 16px;
+  font-size: 0.85rem;
+  white-space: nowrap;
+}
 
 .muted { color: var(--text-light); font-size: 0.85rem; margin-top: 8px; }
 .muted.ok { color: var(--success); }
