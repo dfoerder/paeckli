@@ -149,13 +149,29 @@
 
       <div id="admin-page-goals" class="admin-page">
         <div class="card">
-          <h2 id="goal-heading">Sammlungen</h2>
-          <p class="muted" style="margin:0 0 8px">Anzahl Päckli je Typ.</p>
-          <div id="goal-parcels"></div>
+          <h2>Sammlung bearbeiten</h2>
+          <label for="goal-campaign-select">Sammlung</label>
+          <select id="goal-campaign-select"></select>
+          <label for="goal-title">Titel</label>
+          <input type="text" id="goal-title" placeholder="z.B. Weihnachtspäckli-Aktion 2027">
           <label for="goal-date">Stichtag (bis wann fertig)</label>
           <input type="date" id="goal-date">
-          <button id="goal-btn">Sammlungen speichern</button>
+          <p class="muted" style="margin:10px 4px 0">Anzahl Päckli je Typ</p>
+          <div id="goal-parcels"></div>
+          <button id="goal-btn">Sammlung speichern</button>
           <p id="goal-msg" class="muted"></p>
+        </div>
+
+        <div class="card">
+          <h3>Neue Sammlung</h3>
+          <label for="new-campaign-title">Titel</label>
+          <input type="text" id="new-campaign-title" placeholder="z.B. Weihnachtspäckli-Aktion 2027">
+          <label class="checkbox-row" for="new-campaign-copy">
+            <input type="checkbox" id="new-campaign-copy" checked>
+            <span>Päckli-Zusammensetzung der letzten Sammlung übernehmen</span>
+          </label>
+          <button id="new-campaign-btn">Sammlung erstellen</button>
+          <p id="new-campaign-msg" class="muted"></p>
         </div>
       </div>
 
@@ -220,7 +236,7 @@
       </div>
     </main>
 
-    <footer id="app-footer">v1.6b · 3. Juli 2026</footer>
+    <footer id="app-footer">v2.0b · 3. Juli 2026</footer>
   </div>
 
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>

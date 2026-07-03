@@ -42,26 +42,30 @@ paeckli/
 | Tabelle | Inhalt |
 |---|---|
 | `profiles` | Teilnehmende: `first_name`, `last_name`, `contact_email` (= Login-E-Mail, bei Registrierung gesetzt, nicht editierbar), `contact_phone` (optional, editierbar), `is_admin`. 1:1 mit `auth.users`. |
-| `campaign` | Singleton (id=1): `title`, `target_date`. |
-| `parcels` | Päckli-Typen (vorerst 2): `name` (Erwachsene/Kinder), `abbreviation` (E/K), `number` (Anzahl Päckli), `campaign_id`. Keine feste Reihenfolge. |
-| `articles` | `name`, `notes`, `category` (fixe Auswahl, Dropdown im Admin: Esswaren/Hygiene/Kleidung/Schreibwaren/Spielzeug/Sonstiges; `check`-Constraint + Default `'Sonstiges'`). Anzeige-Reihenfolge alphabetisch nach `name`. |
+| `campaigns` | **Mehrzeilig** (nicht mehr Singleton!): eine Zeile pro Sammlung (z.B. ein Jahr): `title`, `target_date`, `created_at`. Die **aktive** Sammlung = die mit dem neuesten `created_at` (`state.campaigns[0]`, absteigend sortiert geladen). Ältere Sammlungen bleiben in der Datenbank und über den Umschalter in Admin > Sammlungen einsehbar/editierbar. |
+| `parcels` | Päckli-Typen (vorerst 2 pro Sammlung): `name` (Erwachsene/Kinder), `abbreviation` (E/K), `number` (Anzahl Päckli), `campaign_id` (→ `campaigns`, `on delete cascade`). Keine feste Reihenfolge. |
+| `articles` | `name`, `notes`, `category` (fixe Auswahl, Dropdown im Admin: Esswaren/Hygiene/Kleidung/Schreibwaren/Spielzeug/Sonstiges; `check`-Constraint + Default `'Sonstiges'`). **Global**, nicht an eine Sammlung gebunden – dieselben Artikel werden über Sammlungen hinweg wiederverwendet. Anzeige-Reihenfolge alphabetisch nach `name`. |
 | `parcel_content` | Zusammensetzung: `parcel_id`, `article_id`, `quantity` (>0), unique(parcel_id, article_id). |
-| `purchases` | `article_id`, `user_id`, `quantity`, `shop` (Dropdown + Freitext „Anderer Shop…", optional), `donor` (Spender:in-Name, optional), `note`. |
-| `article_status` (View) | berechnet `total_needed`, `bought`, `still_needed`. |
+| `purchases` | `article_id`, `campaign_id` (→ `campaigns`, `on delete restrict`), `user_id`, `quantity`, `shop` (Dropdown + Freitext „Anderer Shop…", optional), `donor` (Spender:in-Name, optional), `note`. Jeder Kauf gehört zu **genau einer** Sammlung, damit eine neue Sammlung beim Fortschritt bei 0 startet. |
+| `article_status` (View) | Eine Zeile pro (Artikel, Sammlung) mit `campaign_id`-Spalte; `total_needed`/`bought`/`still_needed` nur innerhalb derselben Sammlung berechnet. App filtert immer zusätzlich `.eq('campaign_id', state.campaign.id)`. |
+| `article_purchase_totals` (View) | Käufe je Artikel über **alle Sammlungen hinweg** (`id`, `bought`). Nur für die Löschregeln relevant – der FK `on delete restrict` auf `purchases.article_id` kennt keine Sammlungsgrenzen. |
 
-**Kernformel:** `total_needed = Σ über alle Päckli (parcel_content.quantity × parcels.number)`,
+**Kernformel:** `total_needed = Σ über alle Päckli DERSELBEN Sammlung (parcel_content.quantity × parcels.number)`,
 `still_needed = max(0, total_needed − bought)`.
 
 ## Rollen & Sicherheit (RLS)
 
 - Alle Angemeldeten dürfen **lesen** (Transparenz des Bestands).
 - Käufe: jede:r legt eigene an / ändert / löscht eigene; Admin darf alle.
-- Artikel, Päckli, Zusammensetzung & Sammlungen (Ziele): nur **Admin** (`is_admin = true`) schreiben.
+- Artikel, Päckli, Zusammensetzung & Sammlungen: nur **Admin** (`is_admin = true`) schreiben
+  (inkl. neue Sammlung anlegen, `campaigns_insert`-Policy).
 - Admin-Check via `public.is_admin()` (security definer, verhindert RLS-Rekursion).
 - Erste:r Admin wird manuell gesetzt (`update profiles set is_admin=true …`).
-- **Löschregeln** (FK `on delete restrict` auf `article_id`): Artikel sind nur
-  löschbar, wenn sie in keinem Päckli mehr enthalten sind **und** keine Käufe
-  haben. Die App prüft das vorab für verständliche Meldungen; die DB erzwingt es.
+- **Löschregeln** (FK `on delete restrict` auf `article_id`, sowohl bei
+  `parcel_content` als auch bei `purchases`): Artikel sind nur löschbar, wenn
+  sie in keinem Päckli mehr enthalten sind **und** über alle Sammlungen hinweg
+  nie gekauft wurden (`article_purchase_totals`). Die App prüft das vorab für
+  verständliche Meldungen; die DB erzwingt es.
 - **Spaltenrechte auf `profiles`**: `insert`/`update` für `authenticated` sind
   auf harmlose Spalten begrenzt (`is_admin` und `contact_email` nicht selbst
   änderbar – RLS allein prüft nur Zeilen, nicht Spalten).
@@ -76,9 +80,18 @@ Kopfzeile, kein eigener Tab), `packages`
 (Päckli-Zusammensetzung je `parcel` aus `parcel_content`, Toggle dynamisch je
 Päckli-Typ), `admin` (nur für Admin; interne Unterseiten via
 `state.adminPage` + 4 Buttons oben, jeweils nur eine sichtbar: **Sammlungen**
-(intern weiterhin `adminPage: 'goals'`/`#admin-page-goals`; Anzahl Päckli je
-Typ, Stichtag), **Alle Käufe** (alle Käufe gruppiert nach
-Käufer:in inkl. Kontaktangabe für Rückfragen), **Artikel** (alle Artikel
+(intern weiterhin `adminPage: 'goals'`/`#admin-page-goals`; Umschalter über
+alle `state.campaigns` (neueste zuerst, aktive markiert „(aktuell)"), zeigt/
+editiert Titel, Stichtag und Päckli-Ziele der über `state.viewedCampaignId`
+gewählten Sammlung – muss nicht die aktive sein, ältere bleiben einsehbar
+(`loadViewedCampaignParcels()` lädt bei Bedarf deren Päckli-Typen separat
+nach, da `state.parcels` immer nur die AKTIVE Sammlung enthält); unten
+„Neue Sammlung": Titel + Checkbox „Päckli-Zusammensetzung übernehmen"
+(`createCampaign()` → `copyParcelsToNewCampaign()` dupliziert `parcels` +
+`parcel_content` der bisher aktiven Sammlung, Artikel bleiben dieselben).
+Eine neu angelegte Sammlung wird automatisch zur aktiven, da „aktiv" = die
+zuletzt erstellte Sammlung ist), **Alle Käufe** (nur der aktiven Sammlung,
+gruppiert nach Käufer:in inkl. Kontaktangabe für Rückfragen), **Artikel** (alle Artikel
 unabhängig von Päckli-Zuordnung; zwei Modi via `state.articleEditId`: Liste
 nach `category` gruppiert mit „Ändern"-Knopf je Artikel, oder Änderungsansicht
 für einen Artikel — Name/Kategorie/Notiz ändern, endgültig löschen, gesperrt
@@ -95,8 +108,17 @@ Esswaren, Hygiene, Kleidung, Schreibwaren, Spielzeug, Sonstiges).
 
 ```javascript
 const state = {
-  profile, campaign, parcels, articles, content, status, purchases,
-  view: 'overview',   // aktive Ansicht
+  profile,
+  campaigns,          // alle Sammlungen, neueste zuerst
+  campaign,           // AKTIVE Sammlung = campaigns[0]
+  viewedCampaignId,    // Admin > Sammlungen: betrachtete Sammlung (Historie)
+  viewedParcels,       // Päckli-Typen der betrachteten Sammlung
+  parcels,             // Päckli-Typen der AKTIVEN Sammlung
+  articles,            // global, sammlungsübergreifend
+  content, status,     // status = article_status, gefiltert auf aktive Sammlung
+  purchaseTotals,      // article_purchase_totals: Käufe je Artikel, alle Sammlungen (Löschregeln)
+  purchases,           // eigene Käufe der AKTIVEN Sammlung
+  view: 'overview',    // aktive Ansicht
   pkgParcel: null      // id des in der Päckli-Ansicht gewählten Päckli-Typs
 };
 ```

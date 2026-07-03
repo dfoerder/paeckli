@@ -24,13 +24,18 @@ const CATEGORIES = ['Esswaren', 'Hygiene', 'Kleidung', 'Schreibwaren', 'Spielzeu
 // ---------- Zustand ----------
 const state = {
   profile: null,      // { id, first_name, last_name, contact_email, contact_phone, is_admin }
-  campaign: null,     // { title, target_date }
-  parcels: [],        // [{ id, name, abbreviation, number }]
-  articles: [],       // [{ id, name, notes, category }]
+  campaigns: [],      // alle Sammlungen, neueste zuerst
+  campaign: null,     // AKTIVE Sammlung = campaigns[0]; steuert Übersicht/Kauf/Päckli/Päckli-Inhalt
+  viewedCampaignId: null, // Admin > Sammlungen: welche Sammlung wird betrachtet (Historie möglich)
+  viewedParcels: [],  // Päckli-Typen der BETRACHTETEN Sammlung (nur Admin > Sammlungen)
+  parcels: [],        // Päckli-Typen der AKTIVEN Sammlung: [{ id, name, abbreviation, number }]
+  articles: [],       // [{ id, name, notes, category }] – global, sammlungsübergreifend
   content: [],        // parcel_content: [{ parcel_id, article_id, quantity }]
-  status: [],         // aus View article_status
-  purchases: [],      // eigene Käufe (mit Artikelname)
-  allPurchases: [],   // alle Käufe (nur Admin; mit Artikel- und Käufer:in-Name)
+  status: [],         // aus View article_status, gefiltert auf die aktive Sammlung
+  purchaseTotals: [], // aus View article_purchase_totals: Käufe je Artikel über ALLE Sammlungen
+                      // (für Löschregeln – die DB-Sperre kennt keine Sammlungsgrenzen)
+  purchases: [],      // eigene Käufe der aktiven Sammlung (mit Artikelname)
+  allPurchases: [],   // alle Käufe der aktiven Sammlung (nur Admin; mit Artikel- und Käufer:in-Name)
   view: 'overview',
   pkgParcel: null,    // id des in der Päckli-Ansicht gewählten Päckli-Typs
   adminParcel: null,  // id des im Admin gewählten Päckli-Typs (unabhängig)
@@ -227,42 +232,71 @@ async function logout() {
 //  Daten laden
 // ============================================================
 async function loadData() {
-  const [campaign, parcels, articles, content, status, purchases] = await Promise.all([
-    db.from('campaign').select('*').eq('id', 1).single(),
-    db.from('parcels').select('*'),
+  // Phase 1: Sammlungen zuerst laden – die aktive (= neueste) bestimmt, wonach
+  // Päckli/Status/Käufe in Phase 2 gefiltert werden müssen.
+  const [campaigns, articles, purchaseTotals] = await Promise.all([
+    db.from('campaigns').select('*').order('created_at', { ascending: false }),
     db.from('articles').select('*').order('name'),
-    db.from('parcel_content').select('*'),
-    db.from('article_status').select('*').order('name'),
-    db.from('purchases')
-      .select('*, articles(name)')
-      .eq('user_id', state.profile.id)
-      .order('created_at', { ascending: false })
+    db.from('article_purchase_totals').select('*')
   ]);
-  // Query-Fehler sichtbar machen (sonst still als leere Liste verschluckt).
-  const results = { campaign, parcels, articles, content, status, purchases };
-  for (const [key, res] of Object.entries(results)) {
+  const results1 = { campaigns, articles, purchaseTotals };
+  for (const [key, res] of Object.entries(results1)) {
     if (res.error) console.error(`loadData: ${key} ->`, res.error);
   }
 
-  state.campaign = campaign.data || {};
-  state.parcels = parcels.data || [];
+  state.campaigns = campaigns.data || [];
+  state.campaign = state.campaigns[0] || {};
   state.articles = articles.data || [];
+  state.purchaseTotals = purchaseTotals.data || [];
+
+  const activeId = state.campaign.id;
+
+  // Phase 2: nur die aktive Sammlung betreffende Daten.
+  const [parcels, content, status, purchases] = await Promise.all([
+    activeId ? db.from('parcels').select('*').eq('campaign_id', activeId) : Promise.resolve({ data: [] }),
+    db.from('parcel_content').select('*'),
+    activeId
+      ? db.from('article_status').select('*').eq('campaign_id', activeId).order('name')
+      : Promise.resolve({ data: [] }),
+    activeId
+      ? db.from('purchases')
+          .select('*, articles(name)')
+          .eq('user_id', state.profile.id)
+          .eq('campaign_id', activeId)
+          .order('created_at', { ascending: false })
+      : Promise.resolve({ data: [] })
+  ]);
+  const results2 = { parcels, content, status, purchases };
+  for (const [key, res] of Object.entries(results2)) {
+    if (res.error) console.error(`loadData: ${key} ->`, res.error);
+  }
+
+  state.parcels = parcels.data || [];
   state.content = content.data || [];
   state.status = status.data || [];
   state.purchases = purchases.data || [];
 
-  // Admin: zusätzlich alle Käufe laden (mit Käufer:in-Name), nach Käufer:in sortiert,
-  // damit man bei Rückfragen Kontakt aufnehmen kann.
+  // Admin: zusätzlich alle Käufe der aktiven Sammlung laden (mit Käufer:in-Name),
+  // nach Käufer:in sortiert, damit man bei Rückfragen Kontakt aufnehmen kann.
   if (state.profile.is_admin) {
-    const all = await db.from('purchases')
-      .select('*, articles(name), profiles(first_name, last_name, contact_email, contact_phone)')
-      .order('created_at', { ascending: false });
+    const all = activeId
+      ? await db.from('purchases')
+          .select('*, articles(name), profiles(first_name, last_name, contact_email, contact_phone)')
+          .eq('campaign_id', activeId)
+          .order('created_at', { ascending: false })
+      : { data: [] };
     if (all.error) console.error('loadData: allPurchases ->', all.error);
     state.allPurchases = (all.data || []).sort((a, b) =>
       fullName(a.profiles).localeCompare(fullName(b.profiles), 'de-CH'));
   } else {
     state.allPurchases = [];
   }
+
+  // Admin > Sammlungen: betrachtete Sammlung gültig halten (Default: die aktive).
+  if (!state.campaigns.some((c) => c.id === state.viewedCampaignId)) {
+    state.viewedCampaignId = activeId || null;
+  }
+  await loadViewedCampaignParcels();
 
   // gewähltes Päckli (Päckli-Ansicht & Admin) initialisieren / gültig halten.
   if (!state.parcels.some((p) => p.id === state.pkgParcel)) {
@@ -271,6 +305,20 @@ async function loadData() {
   if (!state.parcels.some((p) => p.id === state.adminParcel)) {
     state.adminParcel = state.parcels[0]?.id || null;
   }
+}
+
+// Päckli-Typen der in Admin > Sammlungen betrachteten Sammlung laden. Ist das
+// die aktive Sammlung, reicht state.parcels (schon geladen) – sonst separat
+// nachladen, damit auch ältere Sammlungen einsehbar sind.
+async function loadViewedCampaignParcels() {
+  if (!state.viewedCampaignId) { state.viewedParcels = []; return; }
+  if (state.viewedCampaignId === state.campaign.id) {
+    state.viewedParcels = state.parcels;
+    return;
+  }
+  const { data, error } = await db.from('parcels').select('*').eq('campaign_id', state.viewedCampaignId);
+  if (error) console.error('loadViewedCampaignParcels ->', error);
+  state.viewedParcels = data || [];
 }
 
 async function reload() {
@@ -388,7 +436,7 @@ async function submitBuy() {
 
   el('buy-btn').disabled = true;
   const { error } = await db.from('purchases').insert({
-    article_id, quantity, shop, donor, note, user_id: state.profile.id
+    article_id, quantity, shop, donor, note, user_id: state.profile.id, campaign_id: state.campaign.id
   });
   el('buy-btn').disabled = false;
 
@@ -626,18 +674,7 @@ function renderPackages() {
 //  Ansicht: Admin
 // ============================================================
 function renderAdmin() {
-  // Sammlungen: ein Anzahl-Feld je Päckli-Typ.
-  el('goal-parcels').innerHTML = state.parcels.map((p) => `
-    <label>${esc(p.name)} (${esc(p.abbreviation)})</label>
-    <input type="number" min="0" step="1" inputmode="numeric"
-           data-parcel-goal="${p.id}" value="${p.number}">`).join('');
-  el('goal-date').value = state.campaign.target_date || '';
-  const ds = state.campaign.target_date
-    ? new Date(state.campaign.target_date + 'T00:00:00')
-        .toLocaleDateString('de-CH', { day: 'numeric', month: 'long', year: 'numeric' })
-    : '';
-  el('goal-heading').textContent = ds ? `Sammlungen ${ds}` : 'Sammlungen';
-
+  renderGoals();
   renderAllPurchases();
   renderAdminArticles();
   renderAdminContent();
@@ -647,6 +684,32 @@ function renderAdmin() {
     b.classList.toggle('active', b.dataset.adminPage === state.adminPage));
   $$('.admin-page').forEach((p) =>
     p.classList.toggle('hidden', p.id !== 'admin-page-' + state.adminPage));
+}
+
+// Admin-Unterseite „Sammlungen": Umschalter über alle Sammlungen (neueste
+// zuerst, aktive markiert), darunter Titel/Stichtag/Päckli-Ziele der gerade
+// BETRACHTETEN Sammlung (state.viewedCampaignId; muss nicht die aktive sein –
+// frühere Sammlungen bleiben einsehbar).
+function renderGoals() {
+  el('goal-campaign-select').innerHTML = state.campaigns.map((c) => {
+    const label = (c.title || 'Sammlung') + (c.id === state.campaign.id ? ' (aktuell)' : '');
+    return `<option value="${c.id}" ${c.id === state.viewedCampaignId ? 'selected' : ''}>${esc(label)}</option>`;
+  }).join('');
+
+  const viewed = state.campaigns.find((c) => c.id === state.viewedCampaignId) || state.campaign;
+  el('goal-title').value = viewed.title || '';
+  el('goal-date').value = viewed.target_date || '';
+
+  el('goal-parcels').innerHTML = state.viewedParcels.map((p) => `
+    <label>${esc(p.name)} (${esc(p.abbreviation)})</label>
+    <input type="number" min="0" step="1" inputmode="numeric"
+           data-parcel-goal="${p.id}" value="${p.number}">`).join('');
+}
+
+async function setViewedCampaign(id) {
+  state.viewedCampaignId = id;
+  await loadViewedCampaignParcels();
+  renderGoals();
 }
 
 function setAdminPage(page) {
@@ -784,7 +847,7 @@ function renderArticleList() {
 // data-f-Attribute wie die Päckli-Inhalt-Zeilen, damit saveArticle()
 // wiederverwendet werden kann (containerId grenzt die Suche entsprechend ein).
 function renderArticleEditForm(a) {
-  const bought = state.status.find((s) => s.id === a.id)?.bought || 0;
+  const bought = state.purchaseTotals.find((s) => s.id === a.id)?.bought || 0;
   el('admin-articles-list').innerHTML = `
     <button class="ghost" id="art-edit-back">← Zurück zur Liste</button>
     <div class="card" data-row="${a.id}">
@@ -813,8 +876,9 @@ function renderArticleEditForm(a) {
 
 async function saveGoals() {
   const msg = el('goal-msg');
+  const campaignId = state.viewedCampaignId;
 
-  // Anzahl Päckli je Typ aktualisieren.
+  // Anzahl Päckli je Typ aktualisieren (der betrachteten Sammlung).
   for (const inp of $$('#goal-parcels [data-parcel-goal]')) {
     const { error } = await db.from('parcels')
       .update({ number: parseInt(inp.value, 10) || 0 })
@@ -822,15 +886,100 @@ async function saveGoals() {
     if (error) { msg.className = 'muted err'; msg.textContent = 'Fehler: ' + error.message; return; }
   }
 
-  const { error } = await db.from('campaign')
-    .update({ target_date: el('goal-date').value || null })
-    .eq('id', 1);
+  const { error } = await db.from('campaigns')
+    .update({
+      title: el('goal-title').value.trim() || 'Weihnachtspäckli-Aktion',
+      target_date: el('goal-date').value || null
+    })
+    .eq('id', campaignId);
   if (error) { msg.className = 'muted err'; msg.textContent = 'Fehler: ' + error.message; return; }
 
   msg.className = 'muted ok';
   msg.textContent = 'Gespeichert ✓';
   await loadData();
   renderAdmin();
+}
+
+// Neue Sammlung anlegen. Wird sofort zur aktiven Sammlung (= neueste), da die
+// aktive Sammlung immer die zuletzt erstellte ist. Optional: Päckli-Typen +
+// deren Zusammensetzung der bisher letzten Sammlung kopieren (Artikel bleiben
+// global unverändert, nur die Zuordnung/Menge wird dupliziert).
+async function createCampaign() {
+  const msg = el('new-campaign-msg');
+  const title = el('new-campaign-title').value.trim();
+  const copyContent = el('new-campaign-copy').checked;
+  if (!title) { msg.className = 'muted err'; msg.textContent = 'Titel fehlt.'; return; }
+
+  const previousCampaign = state.campaign; // bisher aktive Sammlung, vor dem Anlegen
+
+  el('new-campaign-btn').disabled = true;
+  const { data: newCampaign, error } = await db.from('campaigns')
+    .insert({ title })
+    .select()
+    .single();
+  if (error) {
+    el('new-campaign-btn').disabled = false;
+    msg.className = 'muted err'; msg.textContent = 'Fehler: ' + error.message;
+    return;
+  }
+
+  if (copyContent && previousCampaign?.id) {
+    const cErr = await copyParcelsToNewCampaign(previousCampaign.id, newCampaign.id);
+    if (cErr) {
+      el('new-campaign-btn').disabled = false;
+      msg.className = 'muted err';
+      msg.textContent = `Sammlung erstellt, aber Kopieren der Päckli-Zusammensetzung fehlgeschlagen: ${cErr.message}`;
+      state.viewedCampaignId = newCampaign.id;
+      await reload();
+      return;
+    }
+  }
+
+  el('new-campaign-btn').disabled = false;
+  el('new-campaign-title').value = '';
+  msg.className = 'muted ok';
+  msg.textContent = 'Sammlung erstellt ✓';
+  state.viewedCampaignId = newCampaign.id;
+  await reload();
+}
+
+// Kopiert Päckli-Typen (parcels) inkl. Zusammensetzung (parcel_content) von
+// einer Sammlung zu einer anderen. Artikel selbst bleiben global unverändert
+// und werden nur wiederverwendet (gleiche article_id).
+async function copyParcelsToNewCampaign(fromCampaignId, toCampaignId) {
+  const { data: oldParcels, error: pErr } = await db.from('parcels')
+    .select('*').eq('campaign_id', fromCampaignId);
+  if (pErr) return pErr;
+  if (!oldParcels.length) return null;
+
+  const { data: newParcels, error: insErr } = await db.from('parcels')
+    .insert(oldParcels.map((p) => ({
+      campaign_id: toCampaignId, name: p.name, abbreviation: p.abbreviation, number: p.number
+    })))
+    .select();
+  if (insErr) return insErr;
+
+  // Alte -> neue Parcel-id über Name+Kürzel zuordnen (nicht über Array-Reihenfolge,
+  // die bei Mehrfach-Insert+Select nicht garantiert erhalten bleibt).
+  const idMap = new Map();
+  for (const op of oldParcels) {
+    const np = newParcels.find((n) => n.name === op.name && n.abbreviation === op.abbreviation);
+    if (np) idMap.set(op.id, np.id);
+  }
+
+  const { data: oldContent, error: cErr } = await db.from('parcel_content')
+    .select('*').in('parcel_id', oldParcels.map((p) => p.id));
+  if (cErr) return cErr;
+  if (!oldContent.length) return null;
+
+  const { error: insCErr } = await db.from('parcel_content').insert(
+    oldContent.map((c) => ({
+      parcel_id: idMap.get(c.parcel_id), article_id: c.article_id, quantity: c.quantity
+    }))
+  );
+  if (insCErr) return insCErr;
+
+  return null;
 }
 
 // Mengen je Päckli für einen Artikel speichern: >0 anlegen/ändern, 0 löschen.
@@ -904,7 +1053,7 @@ async function deleteArticle(id) {
     return;
   }
 
-  const bought = state.status.find((s) => s.id === id)?.bought || 0;
+  const bought = state.purchaseTotals.find((s) => s.id === id)?.bought || 0;
   if (bought > 0) {
     alert(`„${name}" wurde bereits ${bought}× gekauft und kann deshalb nicht gelöscht werden.`);
     return;
@@ -1000,6 +1149,8 @@ function wireEvents() {
   el('profile-btn')?.addEventListener('click', saveProfile);
   el('profile-password-btn')?.addEventListener('click', changePassword);
   el('goal-btn')?.addEventListener('click', saveGoals);
+  el('goal-campaign-select')?.addEventListener('change', (e) => setViewedCampaign(e.target.value));
+  el('new-campaign-btn')?.addEventListener('click', createCampaign);
   el('new-btn')?.addEventListener('click', addArticle);
   el('art-btn')?.addEventListener('click', addStandaloneArticle);
   el('overview-search')?.addEventListener('input', renderOverview);

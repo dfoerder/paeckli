@@ -16,7 +16,11 @@ schon genug da ist und was noch fehlt.
   Login-E-Mail und nicht änderbar; wer eine andere Adresse will, registriert
   ein neues Konto.
 - **Päckli-Zusammensetzung** – was kommt in welchen Päckli-Typ (Erwachsene/Kinder).
-- **Admin** – Artikelliste (inkl. Menge je Päckli-Typ) und Sammlungen (Anzahl Päckli) verwalten.
+- **Admin** – Artikelliste (inkl. Menge je Päckli-Typ) verwalten sowie Sammlungen
+  (Titel, Stichtag, Anzahl Päckli je Typ). Mehrere Sammlungen möglich (z.B. eine
+  pro Jahr) – die neueste ist automatisch aktiv, ältere bleiben einsehbar. Beim
+  Anlegen einer neuen Sammlung kann die Päckli-Zusammensetzung der letzten
+  übernommen werden.
 
 ## Tech-Stack
 
@@ -191,6 +195,113 @@ schon genug da ist und was noch fehlt.
 >     from public.purchases
 >     group by article_id
 >   ) b on b.article_id = a.id;
+> ```
+>
+> **Mehrere Sammlungen (z.B. eine pro Jahr):** Grössere Migration – aus der
+> bisherigen Singleton-Tabelle `campaign` (genau eine Zeile) wird `campaigns`
+> (mehrzeilig, jede Zeile eine „Sammlung"). Käufe (`purchases`) bekommen eine
+> `campaign_id`, damit eine neue Sammlung beim Fortschritt bei 0 startet statt
+> alte Käufe mitzuzählen. Die bestehende einzelne Sammlung samt ihren Päckli-
+> Typen und allen bisherigen Käufen wird dabei automatisch übernommen – es
+> geht nichts verloren. Danach im Admin-Bereich unter **Sammlungen** einmal
+> `Titel` und `Stichtag` der übernommenen Sammlung kontrollieren. Idempotent,
+> also gefahrlos mehrfach ausführbar:
+> ```sql
+> -- 1. Neue campaigns-Tabelle anlegen und die bestehende einzelne Sammlung
+> --    (aus der alten campaign-Tabelle) einmalig übernehmen.
+> create table if not exists public.campaigns (
+>   id            uuid primary key default gen_random_uuid(),
+>   title         text not null default 'Weihnachtspäckli-Aktion',
+>   target_date   date,
+>   created_at    timestamptz not null default now()
+> );
+> insert into public.campaigns (title, target_date)
+> select title, target_date from public.campaign
+> where not exists (select 1 from public.campaigns);
+>
+> -- 2. parcels.campaign_id von int (Fremdschlüssel auf campaign) auf uuid
+> --    (Fremdschlüssel auf campaigns) umstellen. Da bisher nur eine Sammlung
+> --    existierte, bekommen alle vorhandenen Päckli-Typen deren neue id.
+> do $$
+> begin
+>   if exists (
+>     select 1 from information_schema.columns
+>     where table_schema = 'public' and table_name = 'parcels'
+>       and column_name = 'campaign_id' and data_type = 'integer'
+>   ) then
+>     alter table public.parcels add column campaign_id_new uuid;
+>     update public.parcels set campaign_id_new = (select id from public.campaigns order by created_at limit 1);
+>     alter table public.parcels drop column campaign_id;
+>     alter table public.parcels rename column campaign_id_new to campaign_id;
+>     alter table public.parcels alter column campaign_id set not null;
+>     alter table public.parcels add constraint parcels_campaign_id_fkey
+>       foreign key (campaign_id) references public.campaigns (id) on delete cascade;
+>   end if;
+> end $$;
+> create index if not exists parcels_campaign_idx on public.parcels (campaign_id);
+>
+> -- 3. purchases: campaign_id ergänzen, bestehende Käufe der (einzigen)
+> --    bisherigen Sammlung zuordnen (sie wurden ja für diese getätigt).
+> alter table public.purchases add column if not exists campaign_id uuid;
+> update public.purchases set campaign_id = (select id from public.campaigns order by created_at limit 1)
+>   where campaign_id is null;
+> alter table public.purchases alter column campaign_id set not null;
+> alter table public.purchases drop constraint if exists purchases_campaign_id_fkey;
+> alter table public.purchases add constraint purchases_campaign_id_fkey
+>   foreign key (campaign_id) references public.campaigns (id) on delete restrict;
+> create index if not exists purchases_campaign_idx on public.purchases (campaign_id);
+>
+> -- 4. Alte campaign-Tabelle (Singleton) entfernen.
+> drop table if exists public.campaign;
+>
+> -- 5. article_status-View neu: jetzt pro Sammlung statt global (campaign_id
+> --    dazu, bought/still_needed nur noch innerhalb derselben Sammlung).
+> drop view if exists public.article_status;
+> create or replace view public.article_status
+> with (security_invoker = true) as
+>   select
+>     a.id,
+>     n.campaign_id,
+>     a.name,
+>     a.notes,
+>     a.category,
+>     n.total_needed,
+>     coalesce(b.bought, 0) as bought,
+>     greatest(n.total_needed - coalesce(b.bought, 0), 0) as still_needed
+>   from public.articles a
+>   join (
+>     select pc.article_id, p.campaign_id, sum(pc.quantity * p.number) as total_needed
+>     from public.parcel_content pc
+>     join public.parcels p on p.id = pc.parcel_id
+>     group by pc.article_id, p.campaign_id
+>   ) n on n.article_id = a.id
+>   left join (
+>     select article_id, campaign_id, sum(quantity) as bought
+>     from public.purchases
+>     group by article_id, campaign_id
+>   ) b on b.article_id = a.id and b.campaign_id = n.campaign_id;
+>
+> -- 6. Neue View für die Löschregeln: Käufe je Artikel über ALLE Sammlungen
+> --    hinweg (der on-delete-restrict auf purchases.article_id kennt keine
+> --    Sammlungsgrenzen).
+> create or replace view public.article_purchase_totals
+> with (security_invoker = true) as
+>   select article_id as id, sum(quantity) as bought
+>   from public.purchases
+>   group by article_id;
+>
+> -- 7. RLS für campaigns (Rechte campaign -> campaigns übernehmen + neue
+> --    Insert-Policy fürs Anlegen einer neuen Sammlung).
+> alter table public.campaigns enable row level security;
+> drop policy if exists campaigns_select on public.campaigns;
+> create policy campaigns_select on public.campaigns
+>   for select to authenticated using (true);
+> drop policy if exists campaigns_update on public.campaigns;
+> create policy campaigns_update on public.campaigns
+>   for update to authenticated using (public.is_admin()) with check (public.is_admin());
+> drop policy if exists campaigns_insert on public.campaigns;
+> create policy campaigns_insert on public.campaigns
+>   for insert to authenticated with check (public.is_admin());
 > ```
 
 ### 3. E-Mail-Bestätigung deaktivieren

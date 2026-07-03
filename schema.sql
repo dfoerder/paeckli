@@ -4,16 +4,21 @@
 --  Im Supabase-Dashboard unter "SQL Editor" einfügen und ausführen.
 --  Reihenfolge ist wichtig (Teardown -> Tabellen -> View -> Policies -> Beispieldaten).
 --
---  Datenmodell: Päckli-Typen liegen in `parcels` (vorerst Erwachsene/E, Kinder/K),
---  die Zusammensetzung in `parcel_content`. `articles` enthält nur noch den
---  Artikel selbst. So lassen sich weitere Päckli-Typen anlegen, ohne Spalten zu
---  ändern.
+--  Datenmodell: Mehrere Sammlungen (`campaigns`, z.B. eine pro Jahr) möglich.
+--  Die AKTIVE Sammlung ist immer die zuletzt erstellte (max. created_at).
+--  Päckli-Typen liegen in `parcels` (vorerst Erwachsene/E, Kinder/K), je
+--  Sammlung eigene Zeilen; die Zusammensetzung in `parcel_content`. `articles`
+--  enthält nur noch den Artikel selbst und ist sammlungsübergreifend (global) –
+--  so lässt sich beim Anlegen einer neuen Sammlung die Päckli-Zusammensetzung
+--  kopieren, ohne Artikel zu duplizieren. `purchases` gehören zu genau einer
+--  Sammlung, damit eine neue Sammlung bei 0 startet.
 -- ============================================================
 
--- ---------- Teardown (nur Datentabellen; profiles + campaign bleiben) ----------
+-- ---------- Teardown (nur Datentabellen; profiles + campaigns bleiben) ----------
 -- Reihenfolge wegen Fremdschlüsseln. Beim sauberen Neuaufbau gehen Beispiel-
--- Artikel & -Käufe verloren; Teilnehmende (profiles) und Kampagne bleiben.
+-- Artikel & -Käufe verloren; Teilnehmende (profiles) und Sammlungen bleiben.
 drop view  if exists public.article_status;
+drop view  if exists public.article_purchase_totals;
 drop table if exists public.parcel_content;
 drop table if exists public.purchases;
 drop table if exists public.parcels;
@@ -57,28 +62,31 @@ alter table public.profiles drop column if exists name;
 update public.profiles p set contact_email = u.email
 from auth.users u where p.id = u.id and p.contact_email is distinct from u.email;
 
--- Kampagnen-Einstellungen (genau eine Zeile, id = 1).
--- Die Anzahl Päckli liegt jetzt pro Typ in `parcels.number`.
-create table if not exists public.campaign (
-  id            int primary key default 1 check (id = 1),
+-- Sammlungen: mehrzeilig (z.B. eine pro Jahr). Die aktive Sammlung ist immer
+-- die zuletzt erstellte (max. created_at) – siehe app.js loadData(). Ältere
+-- Sammlungen bleiben über den Umschalter in Admin > Sammlungen einsehbar.
+-- Die Anzahl Päckli liegt pro Typ in `parcels.number`.
+create table if not exists public.campaigns (
+  id            uuid primary key default gen_random_uuid(),
   title         text not null default 'Weihnachtspäckli-Aktion',
-  target_date   date                                  -- Stichtag (bis wann fertig)
+  target_date   date,                                 -- Stichtag (bis wann fertig)
+  created_at    timestamptz not null default now()
 );
--- Migration: alte Spalten (Ziel pro Typ) entfernen, Stichtag sicherstellen.
-alter table public.campaign add  column if not exists target_date  date;
-alter table public.campaign drop column if exists target_adult;
-alter table public.campaign drop column if exists target_kid;
-insert into public.campaign (id) values (1) on conflict (id) do nothing;
+-- Erste Sammlung anlegen, falls noch keine existiert (frischer Aufbau).
+insert into public.campaigns (title)
+select 'Weihnachtspäckli-Aktion'
+where not exists (select 1 from public.campaigns);
 
--- Päckli-Typen. Vorerst zwei Zeilen (Erwachsene, Kinder).
+-- Päckli-Typen. Vorerst zwei Zeilen (Erwachsene, Kinder) je Sammlung.
 create table public.parcels (
   id           uuid primary key default gen_random_uuid(),
-  campaign_id  int  not null references public.campaign on delete cascade default 1,
+  campaign_id  uuid not null references public.campaigns on delete cascade,
   name         text not null,                                  -- "Erwachsene", "Kinder"
   abbreviation text not null,                                  -- "E", "K"
   number       int  not null default 0 check (number >= 0),    -- Anzahl Päckli (Ziel)
   created_at   timestamptz not null default now()
 );
+create index if not exists parcels_campaign_idx on public.parcels (campaign_id);
 
 -- Artikel (ohne Mengen – die Menge je Päckli steht in parcel_content).
 -- Anzeige-Reihenfolge: alphabetisch nach `name` (kein eigenes Sortierfeld).
@@ -105,47 +113,65 @@ create table public.parcel_content (
 create index if not exists parcel_content_parcel_idx  on public.parcel_content (parcel_id);
 create index if not exists parcel_content_article_idx on public.parcel_content (article_id);
 
--- Käufe der Teilnehmenden.
--- article_id mit `restrict`: Ein Artikel, den schon jemand gekauft hat, kann
--- nicht gelöscht werden – Käufe stehen für physisch vorhandene Ware.
+-- Käufe der Teilnehmenden. Gehören zu genau einer Sammlung (campaign_id),
+-- damit eine neue Sammlung beim „noch benötigt" bei 0 startet und alte Käufe
+-- nicht auf eine neue Sammlung angerechnet werden.
+-- article_id mit `restrict`: Ein Artikel, den schon jemand gekauft hat (in
+-- irgendeiner Sammlung), kann nicht gelöscht werden – Käufe stehen für
+-- physisch vorhandene Ware.
 create table public.purchases (
-  id          uuid primary key default gen_random_uuid(),
-  article_id  uuid not null references public.articles on delete restrict,
-  user_id     uuid not null references public.profiles on delete cascade default auth.uid(),
-  quantity    int  not null check (quantity > 0),
-  note        text,
-  shop        text,                                    -- Einkaufsort (optional)
-  donor       text,                                    -- Name Spender:in, falls nicht Käufer:in (optional)
-  created_at  timestamptz not null default now()
+  id           uuid primary key default gen_random_uuid(),
+  article_id   uuid not null references public.articles on delete restrict,
+  campaign_id  uuid not null references public.campaigns on delete restrict,
+  user_id      uuid not null references public.profiles on delete cascade default auth.uid(),
+  quantity     int  not null check (quantity > 0),
+  note         text,
+  shop         text,                                    -- Einkaufsort (optional)
+  donor        text,                                    -- Name Spender:in, falls nicht Käufer:in (optional)
+  created_at   timestamptz not null default now()
 );
-create index if not exists purchases_article_idx on public.purchases (article_id);
-create index if not exists purchases_user_idx    on public.purchases (user_id);
+create index if not exists purchases_article_idx  on public.purchases (article_id);
+create index if not exists purchases_campaign_idx on public.purchases (campaign_id);
+create index if not exists purchases_user_idx     on public.purchases (user_id);
 
--- ---------- Status-View: Soll, Bestand, noch kaufen ----------
+-- ---------- Status-View: Soll, Bestand, noch kaufen – PRO SAMMLUNG ----------
 -- security_invoker => RLS der zugrundeliegenden Tabellen greift.
--- total_needed = Σ über alle Päckli (quantity × number).
+-- total_needed = Σ über alle Päckli EINER Sammlung (quantity × number).
+-- Ein Artikel erscheint nur für Sammlungen, in denen er auch in einem Päckli
+-- enthalten ist (inner join über n) – App filtert zusätzlich per campaign_id.
 create or replace view public.article_status
 with (security_invoker = true) as
   select
     a.id,
+    n.campaign_id,
     a.name,
     a.notes,
     a.category,
-    coalesce(n.total_needed, 0)                                 as total_needed,
+    n.total_needed,
     coalesce(b.bought, 0)                                       as bought,
-    greatest(coalesce(n.total_needed, 0) - coalesce(b.bought, 0), 0) as still_needed
+    greatest(n.total_needed - coalesce(b.bought, 0), 0)         as still_needed
   from public.articles a
-  left join (
-    select pc.article_id, sum(pc.quantity * p.number) as total_needed
+  join (
+    select pc.article_id, p.campaign_id, sum(pc.quantity * p.number) as total_needed
     from public.parcel_content pc
     join public.parcels p on p.id = pc.parcel_id
-    group by pc.article_id
+    group by pc.article_id, p.campaign_id
   ) n on n.article_id = a.id
   left join (
-    select article_id, sum(quantity) as bought
+    select article_id, campaign_id, sum(quantity) as bought
     from public.purchases
-    group by article_id
-  ) b on b.article_id = a.id;
+    group by article_id, campaign_id
+  ) b on b.article_id = a.id and b.campaign_id = n.campaign_id;
+
+-- ---------- Käufe je Artikel über ALLE Sammlungen hinweg ----------
+-- Für die Löschregeln: Der `on delete restrict` auf purchases.article_id kennt
+-- keine Sammlungsgrenzen, ein Artikel bleibt gesperrt, sobald er JEMALS
+-- gekauft wurde – unabhängig davon, welche Sammlung gerade aktiv ist.
+create or replace view public.article_purchase_totals
+with (security_invoker = true) as
+  select article_id as id, sum(quantity) as bought
+  from public.purchases
+  group by article_id;
 
 -- ---------- Helfer-Funktion: ist der aktuelle Benutzer Admin? ----------
 -- security definer, damit die Policy nicht rekursiv die profiles-RLS auslöst.
@@ -165,7 +191,7 @@ $$;
 --  Row Level Security
 -- ============================================================
 alter table public.profiles       enable row level security;
-alter table public.campaign       enable row level security;
+alter table public.campaigns      enable row level security;
 alter table public.parcels        enable row level security;
 alter table public.articles       enable row level security;
 alter table public.parcel_content enable row level security;
@@ -197,14 +223,18 @@ grant insert (id, first_name, last_name, contact_email, contact_phone)
 grant update (first_name, last_name, contact_phone)
   on public.profiles to authenticated;
 
--- campaign: alle lesen, nur Admin ändern.
-drop policy if exists campaign_select on public.campaign;
-create policy campaign_select on public.campaign
+-- campaigns: alle lesen, nur Admin ändern/anlegen (neue Sammlung).
+drop policy if exists campaigns_select on public.campaigns;
+create policy campaigns_select on public.campaigns
   for select to authenticated using (true);
 
-drop policy if exists campaign_update on public.campaign;
-create policy campaign_update on public.campaign
+drop policy if exists campaigns_update on public.campaigns;
+create policy campaigns_update on public.campaigns
   for update to authenticated using (public.is_admin()) with check (public.is_admin());
+
+drop policy if exists campaigns_insert on public.campaigns;
+create policy campaigns_insert on public.campaigns
+  for insert to authenticated with check (public.is_admin());
 
 -- parcels: alle lesen, nur Admin schreiben.
 drop policy if exists parcels_select on public.parcels;
@@ -258,10 +288,13 @@ create policy purchases_delete on public.purchases
 --  Beispieldaten aus der Liste 2025 (optional – kann gelöscht werden)
 -- ============================================================
 
--- Päckli-Typen.
-insert into public.parcels (name, abbreviation, number) values
+-- Päckli-Typen, zugeordnet zur (einzigen, gerade angelegten) ersten Sammlung.
+insert into public.parcels (campaign_id, name, abbreviation, number)
+select (select id from public.campaigns order by created_at limit 1), v.name, v.abbreviation, v.number
+from (values
   ('Erwachsene', 'E',  50),
-  ('Kinder',     'K', 100);
+  ('Kinder',     'K', 100)
+) as v(name, abbreviation, number);
 
 -- Artikel (ohne Mengen, ohne Notizen). Anzeige-Reihenfolge ist alphabetisch,
 -- die Reihenfolge hier ist daher beliebig.
