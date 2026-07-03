@@ -146,6 +146,7 @@ input, select, textarea {
   background: #fff;
 }
 input:disabled { background: var(--card); color: var(--text-light); }
+input.search-input { margin-bottom: 14px; }
 .row { display: flex; gap: 12px; }
 .row > div { flex: 1; }
 

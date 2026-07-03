@@ -52,6 +52,8 @@ const el = (id) => document.getElementById(id);
 const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) =>
   ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 const fullName = (p) => [p?.first_name, p?.last_name].filter(Boolean).join(' ');
+// Einfache Suche: Gross-/Kleinschreibung spielt keine Rolle.
+const matches = (name, query) => name.toLowerCase().includes(query.trim().toLowerCase());
 
 function show(id) { el(id)?.classList.remove('hidden'); }
 function hide(id) { el(id)?.classList.add('hidden'); }
@@ -321,10 +323,18 @@ function renderOverview() {
     return;
   }
 
+  const query = el('overview-search').value;
+  const searched = query.trim() ? visible.filter((a) => matches(a.name, query)) : visible;
+
+  if (!searched.length) {
+    el('overview-list').innerHTML = banner + '<p class="empty">Keine Artikel gefunden.</p>';
+    return;
+  }
+
   // Nach Kategorie gruppiert (feste Reihenfolge aus CATEGORIES), damit die
   // lange Artikelliste übersichtlicher bleibt.
   const groups = CATEGORIES
-    .map((cat) => ({ cat, items: visible.filter((a) => a.category === cat) }))
+    .map((cat) => ({ cat, items: searched.filter((a) => a.category === cat) }))
     .filter((g) => g.items.length);
 
   el('overview-list').innerHTML = banner + groups.map((g) => `
@@ -653,14 +663,18 @@ function renderAdminContent() {
   }
 
   // Artikel mit Eintrag im gewählten Päckli (wie renderPackages), editierbar.
+  const query = el('admin-content-search').value;
   const items = state.content
     .filter((c) => c.parcel_id === parcel.id)
     .map((c) => ({ article: state.articles.find((a) => a.id === c.article_id), qty: c.quantity }))
     .filter((x) => x.article)
+    .filter((x) => !query.trim() || matches(x.article.name, query))
     .sort((a, b) => a.article.name.localeCompare(b.article.name, 'de-CH'));
 
   if (!items.length) {
-    el('admin-content').innerHTML = '<p class="empty">Noch keine Artikel in diesem Päckli.</p>';
+    el('admin-content').innerHTML = query.trim()
+      ? '<p class="empty">Keine Artikel gefunden.</p>'
+      : '<p class="empty">Noch keine Artikel in diesem Päckli.</p>';
     return;
   }
 
@@ -698,6 +712,7 @@ function renderAdminArticles() {
   if (state.articleEditId && !editing) state.articleEditId = null; // z.B. gerade gelöscht
 
   el('admin-articles-new').classList.toggle('hidden', !!editing);
+  el('admin-articles-search').classList.toggle('hidden', !!editing);
 
   if (editing) {
     renderArticleEditForm(editing);
@@ -718,10 +733,18 @@ function renderArticleList() {
     return;
   }
 
+  const query = el('admin-articles-search').value;
+  const searched = query.trim() ? state.articles.filter((a) => matches(a.name, query)) : state.articles;
+
+  if (!searched.length) {
+    box.innerHTML = '<p class="empty">Keine Artikel gefunden.</p>';
+    return;
+  }
+
   const groups = CATEGORIES
     .map((cat) => ({
       cat,
-      items: state.articles.filter((a) => a.category === cat)
+      items: searched.filter((a) => a.category === cat)
         .sort((a, b) => a.name.localeCompare(b.name, 'de-CH'))
     }))
     .filter((g) => g.items.length);
@@ -963,6 +986,9 @@ function wireEvents() {
   el('goal-btn')?.addEventListener('click', saveGoals);
   el('new-btn')?.addEventListener('click', addArticle);
   el('art-btn')?.addEventListener('click', addStandaloneArticle);
+  el('overview-search')?.addEventListener('input', renderOverview);
+  el('admin-articles-search')?.addEventListener('input', renderArticleList);
+  el('admin-content-search')?.addEventListener('input', renderAdminContent);
   $$('#admin-nav .pkg-btn').forEach((b) =>
     b.addEventListener('click', () => setAdminPage(b.dataset.adminPage)));
 

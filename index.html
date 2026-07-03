@@ -68,6 +68,7 @@
     <!-- Übersicht: Einkaufsstand -->
     <main id="view-overview" class="view hidden">
       <div id="campaign-summary" class="card summary"></div>
+      <input type="text" id="overview-search" class="search-input" placeholder="🔍 Artikel suchen…">
       <div id="overview-list"></div>
     </main>
 
@@ -165,6 +166,7 @@
 
       <div id="admin-page-articles" class="admin-page">
         <h2 class="view-title">Artikel</h2>
+        <input type="text" id="admin-articles-search" class="search-input" placeholder="🔍 Artikel suchen…">
         <div id="admin-articles-list"></div>
 
         <div id="admin-articles-new" class="card">
@@ -190,6 +192,7 @@
       <div id="admin-page-content" class="admin-page">
         <h2 class="view-title">Päckli-Inhalt</h2>
         <div id="admin-pkg-toggle" class="pkg-toggle"></div>
+        <input type="text" id="admin-content-search" class="search-input" placeholder="🔍 Artikel suchen…">
         <div id="admin-content"></div>
 
         <div class="card">
@@ -216,7 +219,7 @@
       </div>
     </main>
 
-    <footer id="app-footer">v1.3b · 3. Juli 2026</footer>
+    <footer id="app-footer">v1.4b · 3. Juli 2026</footer>
   </div>
 
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
