@@ -75,16 +75,17 @@ Anzeige, = Login-E-Mail – erreichbar über Klick auf den Namen in der
 Kopfzeile, kein eigener Tab), `packages`
 (Päckli-Zusammensetzung je `parcel` aus `parcel_content`, Toggle dynamisch je
 Päckli-Typ), `admin` (nur für Admin; interne Unterseiten via
-`state.adminPage` + 3 Buttons oben, jeweils nur eine sichtbar: **Ziele**
+`state.adminPage` + 4 Buttons oben, jeweils nur eine sichtbar: **Ziele**
 (Anzahl Päckli je Typ, Stichtag), **Alle Käufe** (alle Käufe gruppiert nach
-Käufer:in inkl. Kontaktangabe für Rückfragen), **Päckli-Inhalt** (dieselbe
-Päckli-Darstellung wie `packages`, aber editierbar: Menge/Name/Notiz/Kategorie
-ändern, „Aus Päckli entfernen" = nur `parcel_content`-Zeile; darunter Abschnitt
-„Artikel ohne Päckli": aus allen Päckli entfernte Artikel, nur dort endgültig
-löschbar und nur ohne Käufe (sonst gesperrt, siehe Löschregeln); unten neuer
-Artikel fürs gewählte Päckli, Reuse-by-Name)). Übersicht (`overview`) gruppiert
-die Artikel nach `category` (feste Reihenfolge: Esswaren, Hygiene, Kleidung,
-Schreibwaren, Spielzeug, Sonstiges).
+Käufer:in inkl. Kontaktangabe für Rückfragen), **Artikel** (alle Artikel
+unabhängig von Päckli-Zuordnung: Name/Kategorie/Notiz ändern, endgültig
+löschen – gesperrt, solange in einem Päckli enthalten oder schon gekauft,
+siehe Löschregeln; unten neuer Artikel ohne Päckli-Zuordnung), **Päckli-Inhalt**
+(dieselbe Päckli-Darstellung wie `packages`, aber editierbar: Menge/Name/
+Notiz/Kategorie ändern, „Aus Päckli entfernen" = nur `parcel_content`-Zeile;
+unten Artikel zum gewählten Päckli hinzufügen, Reuse-by-Name)). Übersicht
+(`overview`) gruppiert die Artikel nach `category` (feste Reihenfolge:
+Esswaren, Hygiene, Kleidung, Schreibwaren, Spielzeug, Sonstiges).
 
 ## State-Objekt
 

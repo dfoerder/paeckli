@@ -612,6 +612,7 @@ function renderAdmin() {
   el('goal-heading').textContent = ds ? `Ziele ${ds}` : 'Ziele';
 
   renderAllPurchases();
+  renderAdminArticles();
   renderAdminContent();
 
   // Sub-Navigation: nur die gewählte Admin-Unterseite anzeigen.
@@ -643,9 +644,6 @@ function renderAdminContent() {
 
   const parcel = state.parcels.find((p) => p.id === state.adminParcel);
   el('new-hint').textContent = parcel ? `Neuer Artikel für: ${parcel.name}` : '';
-
-  // Artikel ohne Päckli-Zuordnung immer anzeigen (unabhängig vom gewählten Päckli).
-  renderAdminOrphans();
 
   if (!parcel) {
     el('admin-content').innerHTML = '<p class="empty">Noch keine Päckli-Typen angelegt.</p>';
@@ -683,42 +681,46 @@ function renderAdminContent() {
     </div>`).join('');
 
   $$('#admin-content [data-save]').forEach((b) =>
-    b.addEventListener('click', () => saveArticle(b.dataset.save)));
+    b.addEventListener('click', () => saveArticle(b.dataset.save, 'admin-content')));
   $$('#admin-content [data-remove]').forEach((b) =>
     b.addEventListener('click', () => removeFromParcel(b.dataset.remove)));
 }
 
-// Artikel, die in keinem Päckli mehr enthalten sind: Nur hier können sie
-// endgültig gelöscht werden (Löschregel: erst aus allen Päckli entfernen).
-// Mit Käufen bleiben sie gesperrt – Käufe stehen für vorhandene Ware.
-function renderAdminOrphans() {
-  const box = el('admin-orphans');
-  const orphans = state.articles
-    .filter((a) => !state.content.some((c) => c.article_id === a.id))
-    .sort((a, b) => a.name.localeCompare(b.name, 'de-CH'));
+// Admin-Unterseite „Artikel": alle Artikel, unabhängig von Päckli-Zuordnung.
+// Einziger Ort zum endgültigen Löschen (Löschregel: nicht in einem Päckli
+// enthalten und noch nicht gekauft – siehe deleteArticle).
+function renderAdminArticles() {
+  const box = el('admin-articles-list');
+  const articles = [...state.articles].sort((a, b) => a.name.localeCompare(b.name, 'de-CH'));
 
-  if (!orphans.length) { box.innerHTML = ''; return; }
+  if (!articles.length) {
+    box.innerHTML = '<p class="empty">Noch keine Artikel angelegt.</p>';
+    return;
+  }
 
-  box.innerHTML = `
-    <h2 class="view-title" style="margin-top:20px">Artikel ohne Päckli</h2>
-    <p class="muted" style="margin:0 4px 10px">Aus allen Päckli entfernt.
-      Hier wieder zuordnen (unten als „Neuer Artikel" mit gleichem Namen) oder endgültig löschen.</p>
-    ${orphans.map((a) => {
-      const bought = state.status.find((s) => s.id === a.id)?.bought || 0;
-      return `
-        <div class="item">
-          <div class="head">
-            <span class="name">${esc(a.name)}</span>
-            ${bought ? `<span class="count">${bought} gekauft</span>` : ''}
-          </div>
-          ${bought ? '<div class="sub">Wurde bereits gekauft und kann deshalb nicht gelöscht werden.</div>' : ''}
-          <div class="row-actions">
-            <button class="ghost" data-delart="${a.id}" ${bought ? 'disabled' : ''}>Endgültig löschen</button>
-          </div>
-        </div>`;
-    }).join('')}`;
+  box.innerHTML = articles.map((a) => {
+    const bought = state.status.find((s) => s.id === a.id)?.bought || 0;
+    return `
+      <div class="item" data-row="${a.id}">
+        <label>Name</label>
+        <input type="text" data-f="name" value="${esc(a.name)}">
+        <label>Kategorie</label>
+        <select data-f="category">
+          ${CATEGORIES.map((c) => `<option value="${esc(c)}" ${c === a.category ? 'selected' : ''}>${esc(c)}</option>`).join('')}
+        </select>
+        <label>Notiz</label>
+        <input type="text" data-f="notes" value="${esc(a.notes || '')}">
+        ${bought ? `<p class="muted" style="margin:8px 4px 0">Bereits ${bought}× gekauft – kann deshalb nicht gelöscht werden.</p>` : ''}
+        <div class="row-actions">
+          <button class="secondary" data-save="${a.id}">Speichern</button>
+          <button class="ghost" data-delart="${a.id}" ${bought ? 'disabled' : ''}>Löschen</button>
+        </div>
+      </div>`;
+  }).join('');
 
-  $$('#admin-orphans [data-delart]').forEach((b) =>
+  $$('#admin-articles-list [data-save]').forEach((b) =>
+    b.addEventListener('click', () => saveArticle(b.dataset.save, 'admin-articles-list')));
+  $$('#admin-articles-list [data-delart]').forEach((b) =>
     b.addEventListener('click', () => deleteArticle(b.dataset.delart)));
 }
 
@@ -763,8 +765,12 @@ async function saveParcelContent(articleId, inputs) {
   return null;
 }
 
-async function saveArticle(id) {
-  const row = $(`[data-row="${id}"]`);
+// containerId grenzt die Zeilensuche ein: dieselbe Artikel-id kann gleichzeitig
+// sowohl in der Artikel-Seite als auch im Päckli-Inhalt gerendert sein (beide
+// bleiben im DOM, nur die inaktive Admin-Unterseite ist per CSS versteckt) –
+// ohne Eingrenzung würde `$(...)` sonst die falsche, unsichtbare Zeile treffen.
+async function saveArticle(id, containerId) {
+  const row = $(`#${containerId} [data-row="${id}"]`);
   const get = (f) => row.querySelector(`[data-f="${f}"]`).value;
   const { error } = await db.from('articles').update({
     name: get('name').trim(),
@@ -773,8 +779,11 @@ async function saveArticle(id) {
   }).eq('id', id);
   if (error) { alert('Fehler: ' + error.message); return; }
 
-  const cErr = await saveParcelContent(id, row.querySelectorAll('[data-parcel]'));
-  if (cErr) { alert('Fehler: ' + cErr.message); return; }
+  const parcelInputs = row.querySelectorAll('[data-parcel]');
+  if (parcelInputs.length) {
+    const cErr = await saveParcelContent(id, parcelInputs);
+    if (cErr) { alert('Fehler: ' + cErr.message); return; }
+  }
 
   await loadData();
   // kurze Bestätigung
@@ -862,6 +871,33 @@ async function addArticle() {
   await reload();
 }
 
+// Admin-Unterseite „Artikel": Artikel anlegen ohne Päckli-Zuordnung
+// (die Zuordnung + Menge passiert separat unter „Päckli-Inhalt").
+async function addStandaloneArticle() {
+  const msg = el('art-msg');
+  const name = el('art-name').value.trim();
+  if (!name) { msg.className = 'muted err'; msg.textContent = 'Name fehlt.'; return; }
+
+  if (state.articles.some((a) => a.name.trim().toLowerCase() === name.toLowerCase())) {
+    msg.className = 'muted err';
+    msg.textContent = `Ein Artikel namens „${name}" existiert bereits.`;
+    return;
+  }
+
+  const { error } = await db.from('articles').insert({
+    name,
+    category: el('art-category').value,
+    notes: el('art-notes').value.trim() || null
+  });
+  if (error) { msg.className = 'muted err'; msg.textContent = 'Fehler: ' + error.message; return; }
+
+  el('art-name').value = '';
+  el('art-notes').value = '';
+  msg.className = 'muted ok';
+  msg.textContent = 'Hinzugefügt ✓';
+  await reload();
+}
+
 // ============================================================
 //  Event-Verdrahtung
 // ============================================================
@@ -878,6 +914,7 @@ function wireEvents() {
   el('profile-password-btn')?.addEventListener('click', changePassword);
   el('goal-btn')?.addEventListener('click', saveGoals);
   el('new-btn')?.addEventListener('click', addArticle);
+  el('art-btn')?.addEventListener('click', addStandaloneArticle);
   $$('#admin-nav .pkg-btn').forEach((b) =>
     b.addEventListener('click', () => setAdminPage(b.dataset.adminPage)));
 

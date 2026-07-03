@@ -142,6 +142,7 @@
       <div id="admin-nav" class="pkg-toggle">
         <button class="pkg-btn" data-admin-page="goals">Ziele</button>
         <button class="pkg-btn" data-admin-page="purchases">Alle Käufe</button>
+        <button class="pkg-btn" data-admin-page="articles">Artikel</button>
         <button class="pkg-btn" data-admin-page="content">Päckli-Inhalt</button>
       </div>
 
@@ -162,14 +163,37 @@
         <div id="admin-all-list"></div>
       </div>
 
+      <div id="admin-page-articles" class="admin-page">
+        <h2 class="view-title">Artikel</h2>
+        <div id="admin-articles-list"></div>
+
+        <div class="card">
+          <h3>Neuer Artikel</h3>
+          <label for="art-name">Name</label>
+          <input type="text" id="art-name" placeholder="Artikelname">
+          <label for="art-category">Kategorie</label>
+          <select id="art-category">
+            <option value="Esswaren">Esswaren</option>
+            <option value="Hygiene">Hygiene</option>
+            <option value="Kleidung">Kleidung</option>
+            <option value="Schreibwaren">Schreibwaren</option>
+            <option value="Spielzeug">Spielzeug</option>
+            <option value="Sonstiges">Sonstiges</option>
+          </select>
+          <label for="art-notes">Notiz</label>
+          <input type="text" id="art-notes" placeholder="optional">
+          <button id="art-btn">Artikel hinzufügen</button>
+          <p id="art-msg" class="muted"></p>
+        </div>
+      </div>
+
       <div id="admin-page-content" class="admin-page">
         <h2 class="view-title">Päckli-Inhalt</h2>
         <div id="admin-pkg-toggle" class="pkg-toggle"></div>
         <div id="admin-content"></div>
-        <div id="admin-orphans"></div>
 
         <div class="card">
-          <h3>Neuer Artikel</h3>
+          <h3>Artikel zu Päckli hinzufügen</h3>
           <p id="new-hint" class="muted" style="margin:0 0 8px"></p>
           <label for="new-name">Name</label>
           <input type="text" id="new-name" placeholder="Artikelname">
