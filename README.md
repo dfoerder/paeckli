@@ -129,6 +129,69 @@ schon genug da ist und was noch fehlt.
 >     group by article_id
 >   ) b on b.article_id = a.id;
 > ```
+>
+> Kategorisierung der Artikel (Esswaren/Hygiene/Kleidung/Schreibwaren/Spielzeug/
+> Sonstiges), für die Gruppierung in der Übersicht. Bekannte Artikel aus der
+> Beispielliste werden automatisch zugeordnet, alle anderen fallen vorerst unter
+> „Sonstiges" und lassen sich im Admin unter **Päckli-Inhalt** nachträglich ändern:
+> ```sql
+> alter table public.articles add column if not exists category text;
+>
+> update public.articles a set category = v.category
+> from (values
+>   ('Mehl', 'Esswaren'), ('Reis', 'Esswaren'), ('Zucker', 'Esswaren'),
+>   ('Teigwaren', 'Esswaren'), ('Schokolade', 'Esswaren'), ('Biskuits (Päckli)', 'Esswaren'),
+>   ('Kaffee (gemahlen/instant)', 'Esswaren'), ('Tee', 'Esswaren'), ('Süssigkeiten', 'Esswaren'),
+>   ('Zahnpasta', 'Hygiene'), ('Zahnbürste', 'Hygiene'), ('Seife (in Alufolie)', 'Hygiene'),
+>   ('Shampoo (Deckel verklebt)', 'Hygiene'),
+>   ('Schreibpapier / Hefte', 'Schreibwaren'), ('Kugelschreiber', 'Schreibwaren'),
+>   ('Bleistift', 'Schreibwaren'), ('Gummi', 'Schreibwaren'), ('Spitzer', 'Schreibwaren'),
+>   ('Farbstifte', 'Schreibwaren'),
+>   ('Spielzeug: Plüschtier', 'Spielzeug'), ('Spielzeug: Gumpibälle', 'Spielzeug'),
+>   ('Spielzeug: Autöli', 'Spielzeug'), ('Spielzeug: Tennisbälle', 'Spielzeug'),
+>   ('Spielzeug: Marmeli', 'Spielzeug'), ('Spielzeug: Div.', 'Spielzeug'),
+>   ('Ansichtskarten', 'Sonstiges'), ('Kerzen', 'Sonstiges'),
+>   ('Streichhölzer 10er-Päckli', 'Sonstiges'), ('Schnur', 'Sonstiges'),
+>   ('Schachteln Kinder', 'Sonstiges'), ('Schachteln Erwachsene', 'Sonstiges'),
+>   ('Geschenkpapier', 'Sonstiges'),
+>   ('Socken Kinder', 'Kleidung'), ('Socken Erwachsene', 'Kleidung'),
+>   ('Mützen Kinder', 'Kleidung'), ('Mützen Erwachsene', 'Kleidung'),
+>   ('Handschuhe Kinder', 'Kleidung'), ('Handschuhe Erwachsene', 'Kleidung'),
+>   ('Decken/Pullis Kinder', 'Kleidung'), ('Schals Erwachsene', 'Kleidung'),
+>   ('Pyjama Kinder', 'Kleidung')
+> ) as v(name, category)
+> where a.name = v.name and a.category is null;
+>
+> update public.articles set category = 'Sonstiges' where category is null;
+> alter table public.articles alter column category set not null;
+> alter table public.articles alter column category set default 'Sonstiges';
+> alter table public.articles add constraint articles_category_check
+>   check (category in ('Esswaren', 'Hygiene', 'Kleidung', 'Schreibwaren', 'Spielzeug', 'Sonstiges'));
+>
+> drop view if exists public.article_status;
+> create or replace view public.article_status
+> with (security_invoker = true) as
+>   select
+>     a.id,
+>     a.name,
+>     a.notes,
+>     a.category,
+>     coalesce(n.total_needed, 0)                                 as total_needed,
+>     coalesce(b.bought, 0)                                       as bought,
+>     greatest(coalesce(n.total_needed, 0) - coalesce(b.bought, 0), 0) as still_needed
+>   from public.articles a
+>   left join (
+>     select pc.article_id, sum(pc.quantity * p.number) as total_needed
+>     from public.parcel_content pc
+>     join public.parcels p on p.id = pc.parcel_id
+>     group by pc.article_id
+>   ) n on n.article_id = a.id
+>   left join (
+>     select article_id, sum(quantity) as bought
+>     from public.purchases
+>     group by article_id
+>   ) b on b.article_id = a.id;
+> ```
 
 ### 3. E-Mail-Bestätigung deaktivieren
 

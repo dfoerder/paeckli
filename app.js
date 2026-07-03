@@ -17,12 +17,16 @@ if (configured && window.supabase) {
   db = window.supabase.createClient(cfg.SUPABASE_URL, cfg.SUPABASE_ANON_KEY);
 }
 
+// Feste Artikel-Kategorien (Dropdown im Admin), zugleich Gruppierungs-Reihenfolge
+// in der Übersicht. Muss mit dem check-Constraint auf articles.category übereinstimmen.
+const CATEGORIES = ['Esswaren', 'Hygiene', 'Kleidung', 'Schreibwaren', 'Spielzeug', 'Sonstiges'];
+
 // ---------- Zustand ----------
 const state = {
   profile: null,      // { id, first_name, last_name, contact_email, contact_phone, is_admin }
   campaign: null,     // { title, target_date }
   parcels: [],        // [{ id, name, abbreviation, number }]
-  articles: [],       // [{ id, name, notes }]
+  articles: [],       // [{ id, name, notes, category }]
   content: [],        // parcel_content: [{ parcel_id, article_id, quantity }]
   status: [],         // aus View article_status
   purchases: [],      // eigene Käufe (mit Artikelname)
@@ -316,22 +320,30 @@ function renderOverview() {
     return;
   }
 
-  el('overview-list').innerHTML = banner + visible.map((a) => {
-    const done = a.total_needed > 0 && a.bought >= a.total_needed;
-    const pctItem = a.total_needed ? Math.min(100, Math.round((a.bought / a.total_needed) * 100)) : 100;
-    const pill = done
-      ? '<span class="pill ok">genug</span>'
-      : `<span class="pill need">noch ${a.still_needed}</span>`;
-    return `
-      <div class="item ${done ? 'complete' : 'missing'}">
-        <div class="head">
-          <span class="name">${esc(a.name)}</span>
-          <span class="count"><span class="${done ? 'done' : ''}">${a.bought}</span> / ${a.total_needed}</span>
-        </div>
-        <div class="bar"><span style="width:${pctItem}%"></span></div>
-        <div class="sub">${pill}${a.notes ? ' · ' + esc(a.notes) : ''}</div>
-      </div>`;
-  }).join('');
+  // Nach Kategorie gruppiert (feste Reihenfolge aus CATEGORIES), damit die
+  // lange Artikelliste übersichtlicher bleibt.
+  const groups = CATEGORIES
+    .map((cat) => ({ cat, items: visible.filter((a) => a.category === cat) }))
+    .filter((g) => g.items.length);
+
+  el('overview-list').innerHTML = banner + groups.map((g) => `
+    <h3 class="category-heading">${esc(g.cat)}</h3>
+    ${g.items.map((a) => {
+      const done = a.total_needed > 0 && a.bought >= a.total_needed;
+      const pctItem = a.total_needed ? Math.min(100, Math.round((a.bought / a.total_needed) * 100)) : 100;
+      const pill = done
+        ? '<span class="pill ok">genug</span>'
+        : `<span class="pill need">noch ${a.still_needed}</span>`;
+      return `
+        <div class="item ${done ? 'complete' : 'missing'}">
+          <div class="head">
+            <span class="name">${esc(a.name)}</span>
+            <span class="count"><span class="${done ? 'done' : ''}">${a.bought}</span> / ${a.total_needed}</span>
+          </div>
+          <div class="bar"><span style="width:${pctItem}%"></span></div>
+          <div class="sub">${pill}${a.notes ? ' · ' + esc(a.notes) : ''}</div>
+        </div>`;
+    }).join('')}`).join('');
 }
 
 // ============================================================
@@ -656,6 +668,10 @@ function renderAdminContent() {
     <div class="item" data-row="${x.article.id}">
       <label>Name</label>
       <input type="text" data-f="name" value="${esc(x.article.name)}">
+      <label>Kategorie</label>
+      <select data-f="category">
+        ${CATEGORIES.map((c) => `<option value="${esc(c)}" ${c === x.article.category ? 'selected' : ''}>${esc(c)}</option>`).join('')}
+      </select>
       <label>Menge (${esc(parcel.abbreviation)})</label>
       <input type="number" min="0" step="1" inputmode="numeric" data-parcel="${parcel.id}" value="${x.qty}">
       <label>Notiz</label>
@@ -752,7 +768,8 @@ async function saveArticle(id) {
   const get = (f) => row.querySelector(`[data-f="${f}"]`).value;
   const { error } = await db.from('articles').update({
     name: get('name').trim(),
-    notes: get('notes').trim() || null
+    notes: get('notes').trim() || null,
+    category: get('category')
   }).eq('id', id);
   if (error) { alert('Fehler: ' + error.message); return; }
 
@@ -824,7 +841,8 @@ async function addArticle() {
   if (!article) {
     const { data, error } = await db.from('articles').insert({
       name,
-      notes: el('new-notes').value.trim() || null
+      notes: el('new-notes').value.trim() || null,
+      category: el('new-category').value
     }).select().single();
     if (error) { msg.className = 'muted err'; msg.textContent = 'Fehler: ' + error.message; return; }
     article = data;

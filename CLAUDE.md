@@ -44,7 +44,7 @@ paeckli/
 | `profiles` | Teilnehmende: `first_name`, `last_name`, `contact_email` (= Login-E-Mail, bei Registrierung gesetzt, nicht editierbar), `contact_phone` (optional, editierbar), `is_admin`. 1:1 mit `auth.users`. |
 | `campaign` | Singleton (id=1): `title`, `target_date`. |
 | `parcels` | Päckli-Typen (vorerst 2): `name` (Erwachsene/Kinder), `abbreviation` (E/K), `number` (Anzahl Päckli), `campaign_id`. Keine feste Reihenfolge. |
-| `articles` | `name`, `notes`. Anzeige-Reihenfolge alphabetisch nach `name`. |
+| `articles` | `name`, `notes`, `category` (fixe Auswahl, Dropdown im Admin: Esswaren/Hygiene/Kleidung/Schreibwaren/Spielzeug/Sonstiges; `check`-Constraint + Default `'Sonstiges'`). Anzeige-Reihenfolge alphabetisch nach `name`. |
 | `parcel_content` | Zusammensetzung: `parcel_id`, `article_id`, `quantity` (>0), unique(parcel_id, article_id). |
 | `purchases` | `article_id`, `user_id`, `quantity`, `shop` (Dropdown + Freitext „Anderer Shop…", optional), `donor` (Spender:in-Name, optional), `note`. |
 | `article_status` (View) | berechnet `total_needed`, `bought`, `still_needed`. |
@@ -78,11 +78,13 @@ Päckli-Typ), `admin` (nur für Admin; interne Unterseiten via
 `state.adminPage` + 3 Buttons oben, jeweils nur eine sichtbar: **Ziele**
 (Anzahl Päckli je Typ, Stichtag), **Alle Käufe** (alle Käufe gruppiert nach
 Käufer:in inkl. Kontaktangabe für Rückfragen), **Päckli-Inhalt** (dieselbe
-Päckli-Darstellung wie `packages`, aber editierbar: Menge/Name/Notiz ändern,
-„Aus Päckli entfernen" = nur `parcel_content`-Zeile; darunter Abschnitt
+Päckli-Darstellung wie `packages`, aber editierbar: Menge/Name/Notiz/Kategorie
+ändern, „Aus Päckli entfernen" = nur `parcel_content`-Zeile; darunter Abschnitt
 „Artikel ohne Päckli": aus allen Päckli entfernte Artikel, nur dort endgültig
 löschbar und nur ohne Käufe (sonst gesperrt, siehe Löschregeln); unten neuer
-Artikel fürs gewählte Päckli, Reuse-by-Name)).
+Artikel fürs gewählte Päckli, Reuse-by-Name)). Übersicht (`overview`) gruppiert
+die Artikel nach `category` (feste Reihenfolge: Esswaren, Hygiene, Kleidung,
+Schreibwaren, Spielzeug, Sonstiges).
 
 ## State-Objekt
 

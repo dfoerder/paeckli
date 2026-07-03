@@ -121,6 +121,17 @@ header h1 {
 .buyer-name .muted { font-size: 0.8rem; }
 .buyer-contact { margin: 0 4px 8px; font-size: 0.85rem; color: var(--text-light); }
 
+/* Übersicht: Artikel nach Kategorie gruppiert */
+.category-heading {
+  margin: 20px 4px 10px;
+  font-size: 0.8rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  color: var(--text-light);
+}
+.category-heading:first-child { margin-top: 4px; }
+
 label {
   display: block;
   font-size: 0.85rem;
