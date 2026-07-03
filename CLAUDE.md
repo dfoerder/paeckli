@@ -78,9 +78,12 @@ Päckli-Typ), `admin` (nur für Admin; interne Unterseiten via
 `state.adminPage` + 4 Buttons oben, jeweils nur eine sichtbar: **Ziele**
 (Anzahl Päckli je Typ, Stichtag), **Alle Käufe** (alle Käufe gruppiert nach
 Käufer:in inkl. Kontaktangabe für Rückfragen), **Artikel** (alle Artikel
-unabhängig von Päckli-Zuordnung: Name/Kategorie/Notiz ändern, endgültig
-löschen – gesperrt, solange in einem Päckli enthalten oder schon gekauft,
-siehe Löschregeln; unten neuer Artikel ohne Päckli-Zuordnung), **Päckli-Inhalt**
+unabhängig von Päckli-Zuordnung; zwei Modi via `state.articleEditId`: Liste
+nach `category` gruppiert mit „Ändern"-Knopf je Artikel, oder Änderungsansicht
+für einen Artikel — Name/Kategorie/Notiz ändern, endgültig löschen, gesperrt
+solange in einem Päckli enthalten oder schon gekauft, siehe Löschregeln;
+„Neuer Artikel" nur im Listen-Modus sichtbar, legt Artikel ohne Päckli-
+Zuordnung an), **Päckli-Inhalt**
 (dieselbe Päckli-Darstellung wie `packages`, aber editierbar: Menge/Name/
 Notiz/Kategorie ändern, „Aus Päckli entfernen" = nur `parcel_content`-Zeile;
 unten Artikel zum gewählten Päckli hinzufügen, Reuse-by-Name)). Übersicht

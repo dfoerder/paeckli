@@ -34,7 +34,8 @@ const state = {
   view: 'overview',
   pkgParcel: null,    // id des in der Päckli-Ansicht gewählten Päckli-Typs
   adminParcel: null,  // id des im Admin gewählten Päckli-Typs (unabhängig)
-  adminPage: 'goals'  // aktive Unterseite im Admin-Tab: goals | purchases | content
+  adminPage: 'goals', // aktive Unterseite im Admin-Tab: goals | purchases | articles | content
+  articleEditId: null // Artikel-Seite: id des Artikels in der Änderungsansicht (null = Liste)
 };
 
 // Menge eines Artikels in einem bestimmten Päckli-Typ (0, falls nicht enthalten).
@@ -624,6 +625,7 @@ function renderAdmin() {
 
 function setAdminPage(page) {
   state.adminPage = page;
+  state.articleEditId = null; // beim Wechsel der Unterseite zurück zur Artikel-Liste
   renderAdmin();
 }
 
@@ -687,41 +689,89 @@ function renderAdminContent() {
 }
 
 // Admin-Unterseite „Artikel": alle Artikel, unabhängig von Päckli-Zuordnung.
+// Zwei Modi je nach state.articleEditId: Liste (nach Kategorie gruppiert,
+// „Ändern"-Knopf) oder Änderungsansicht (ein Artikel, Speichern/Löschen).
 // Einziger Ort zum endgültigen Löschen (Löschregel: nicht in einem Päckli
 // enthalten und noch nicht gekauft – siehe deleteArticle).
 function renderAdminArticles() {
-  const box = el('admin-articles-list');
-  const articles = [...state.articles].sort((a, b) => a.name.localeCompare(b.name, 'de-CH'));
+  const editing = state.articleEditId && state.articles.find((a) => a.id === state.articleEditId);
+  if (state.articleEditId && !editing) state.articleEditId = null; // z.B. gerade gelöscht
 
-  if (!articles.length) {
+  el('admin-articles-new').classList.toggle('hidden', !!editing);
+
+  if (editing) {
+    renderArticleEditForm(editing);
+  } else {
+    renderArticleList();
+  }
+}
+
+function startEditArticle(id) {
+  state.articleEditId = id;
+  renderAdminArticles();
+}
+
+function renderArticleList() {
+  const box = el('admin-articles-list');
+  if (!state.articles.length) {
     box.innerHTML = '<p class="empty">Noch keine Artikel angelegt.</p>';
     return;
   }
 
-  box.innerHTML = articles.map((a) => {
-    const bought = state.status.find((s) => s.id === a.id)?.bought || 0;
-    return `
-      <div class="item" data-row="${a.id}">
-        <label>Name</label>
-        <input type="text" data-f="name" value="${esc(a.name)}">
-        <label>Kategorie</label>
-        <select data-f="category">
-          ${CATEGORIES.map((c) => `<option value="${esc(c)}" ${c === a.category ? 'selected' : ''}>${esc(c)}</option>`).join('')}
-        </select>
-        <label>Notiz</label>
-        <input type="text" data-f="notes" value="${esc(a.notes || '')}">
-        ${bought ? `<p class="muted" style="margin:8px 4px 0">Bereits ${bought}× gekauft – kann deshalb nicht gelöscht werden.</p>` : ''}
-        <div class="row-actions">
-          <button class="secondary" data-save="${a.id}">Speichern</button>
-          <button class="ghost" data-delart="${a.id}" ${bought ? 'disabled' : ''}>Löschen</button>
-        </div>
-      </div>`;
-  }).join('');
+  const groups = CATEGORIES
+    .map((cat) => ({
+      cat,
+      items: state.articles.filter((a) => a.category === cat)
+        .sort((a, b) => a.name.localeCompare(b.name, 'de-CH'))
+    }))
+    .filter((g) => g.items.length);
 
-  $$('#admin-articles-list [data-save]').forEach((b) =>
-    b.addEventListener('click', () => saveArticle(b.dataset.save, 'admin-articles-list')));
-  $$('#admin-articles-list [data-delart]').forEach((b) =>
-    b.addEventListener('click', () => deleteArticle(b.dataset.delart)));
+  box.innerHTML = groups.map((g) => `
+    <h3 class="category-heading">${esc(g.cat)}</h3>
+    ${g.items.map((a) => `
+      <div class="item">
+        <div class="head">
+          <span class="name">${esc(a.name)}</span>
+        </div>
+        ${a.notes ? `<div class="sub">${esc(a.notes)}</div>` : ''}
+        <div class="row-actions">
+          <button class="secondary" data-editart="${a.id}">Ändern</button>
+        </div>
+      </div>`).join('')}`).join('');
+
+  $$('#admin-articles-list [data-editart]').forEach((b) =>
+    b.addEventListener('click', () => startEditArticle(b.dataset.editart)));
+}
+
+// Änderungsansicht für einen einzelnen Artikel. Nutzt dieselben data-row/
+// data-f-Attribute wie die Päckli-Inhalt-Zeilen, damit saveArticle()
+// wiederverwendet werden kann (containerId grenzt die Suche entsprechend ein).
+function renderArticleEditForm(a) {
+  const bought = state.status.find((s) => s.id === a.id)?.bought || 0;
+  el('admin-articles-list').innerHTML = `
+    <button class="ghost" id="art-edit-back">← Zurück zur Liste</button>
+    <div class="card" data-row="${a.id}">
+      <h3>Artikel ändern</h3>
+      <label>Name</label>
+      <input type="text" data-f="name" value="${esc(a.name)}">
+      <label>Kategorie</label>
+      <select data-f="category">
+        ${CATEGORIES.map((c) => `<option value="${esc(c)}" ${c === a.category ? 'selected' : ''}>${esc(c)}</option>`).join('')}
+      </select>
+      <label>Notiz</label>
+      <input type="text" data-f="notes" value="${esc(a.notes || '')}">
+      ${bought ? `<p class="muted" style="margin:8px 4px 0">Bereits ${bought}× gekauft – kann deshalb nicht gelöscht werden.</p>` : ''}
+      <div class="row-actions">
+        <button class="secondary" data-save="${a.id}">Speichern</button>
+        <button class="ghost" data-delart="${a.id}" ${bought ? 'disabled' : ''}>Löschen</button>
+      </div>
+    </div>`;
+
+  el('art-edit-back').addEventListener('click', () => { state.articleEditId = null; renderAdminArticles(); });
+  $(`#admin-articles-list [data-save="${a.id}"]`)
+    .addEventListener('click', () => saveArticle(a.id, 'admin-articles-list'));
+  $(`#admin-articles-list [data-delart="${a.id}"]`)
+    .addEventListener('click', () => deleteArticle(a.id));
 }
 
 async function saveGoals() {
