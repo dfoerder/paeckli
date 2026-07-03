@@ -247,3 +247,11 @@ code { background: var(--track); padding: 1px 5px; border-radius: 5px; }
 .deadline.need { background: #fdf0e3; color: var(--warn); }
 
 .empty { text-align: center; color: var(--text-light); padding: 24px; }
+
+/* ---------- Fusszeile: App-Version ---------- */
+#app-footer {
+  text-align: center;
+  font-size: 0.72rem;
+  color: var(--text-light);
+  padding: 16px 0 8px;
+}

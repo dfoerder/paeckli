@@ -94,6 +94,14 @@ const state = {
 };
 ```
 
+## App-Version
+
+Statische Fusszeile (`#app-footer` in `index.html`, letztes Element in `#app`,
+immer sichtbar, unabhängig von der aktiven Ansicht) zeigt Versionskürzel +
+Erscheinungsdatum, z.B. „v1b · 3. Juli 2026". Kein Build-Step, daher von Hand
+gepflegt: **vor jedem Deployment nach `main`** zusammen mit der `sw.js`-
+Cache-Version (`CACHE_NAME`) hochzählen/aktualisieren.
+
 ## Branches
 
 | Branch | Zweck |
