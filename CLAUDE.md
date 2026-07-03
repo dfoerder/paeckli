@@ -43,8 +43,8 @@ paeckli/
 |---|---|
 | `profiles` | Teilnehmende: `first_name`, `last_name`, `contact_email` (= Login-E-Mail, bei Registrierung gesetzt, nicht editierbar), `contact_phone` (optional, editierbar), `is_admin`. 1:1 mit `auth.users`. |
 | `campaign` | Singleton (id=1): `title`, `target_date`. |
-| `parcels` | Päckli-Typen (vorerst 2): `name` (Erwachsene/Kinder), `abbreviation` (E/K), `number` (Anzahl Päckli), `campaign_id`, `sort_order`. |
-| `articles` | `name`, `notes`, `sort_order`. |
+| `parcels` | Päckli-Typen (vorerst 2): `name` (Erwachsene/Kinder), `abbreviation` (E/K), `number` (Anzahl Päckli), `campaign_id`. Keine feste Reihenfolge. |
+| `articles` | `name`, `notes`. Anzeige-Reihenfolge alphabetisch nach `name`. |
 | `parcel_content` | Zusammensetzung: `parcel_id`, `article_id`, `quantity` (>0), unique(parcel_id, article_id). |
 | `purchases` | `article_id`, `user_id`, `quantity`, `shop` (Dropdown + Freitext „Anderer Shop…", optional), `donor` (Spender:in-Name, optional), `note`. |
 | `article_status` (View) | berechnet `total_needed`, `bought`, `still_needed`. |

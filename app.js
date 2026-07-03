@@ -21,8 +21,8 @@ if (configured && window.supabase) {
 const state = {
   profile: null,      // { id, first_name, last_name, contact_email, contact_phone, is_admin }
   campaign: null,     // { title, target_date }
-  parcels: [],        // [{ id, name, abbreviation, number, sort_order }]
-  articles: [],       // [{ id, name, notes, sort_order }]
+  parcels: [],        // [{ id, name, abbreviation, number }]
+  articles: [],       // [{ id, name, notes }]
   content: [],        // parcel_content: [{ parcel_id, article_id, quantity }]
   status: [],         // aus View article_status
   purchases: [],      // eigene Käufe (mit Artikelname)
@@ -222,10 +222,10 @@ async function logout() {
 async function loadData() {
   const [campaign, parcels, articles, content, status, purchases] = await Promise.all([
     db.from('campaign').select('*').eq('id', 1).single(),
-    db.from('parcels').select('*').order('sort_order'),
-    db.from('articles').select('*').order('sort_order'),
+    db.from('parcels').select('*'),
+    db.from('articles').select('*').order('name'),
     db.from('parcel_content').select('*'),
-    db.from('article_status').select('*').order('sort_order'),
+    db.from('article_status').select('*').order('name'),
     db.from('purchases')
       .select('*, articles(name)')
       .eq('user_id', state.profile.id)
@@ -566,7 +566,7 @@ function renderPackages() {
     .filter((c) => c.parcel_id === parcel.id)
     .map((c) => ({ article: state.articles.find((a) => a.id === c.article_id), qty: c.quantity }))
     .filter((x) => x.article)
-    .sort((a, b) => a.article.sort_order - b.article.sort_order);
+    .sort((a, b) => a.article.name.localeCompare(b.article.name, 'de-CH'));
 
   if (!items.length) {
     el('packages-list').innerHTML = '<p class="empty">Keine Artikel zugeordnet.</p>';
@@ -645,7 +645,7 @@ function renderAdminContent() {
     .filter((c) => c.parcel_id === parcel.id)
     .map((c) => ({ article: state.articles.find((a) => a.id === c.article_id), qty: c.quantity }))
     .filter((x) => x.article)
-    .sort((a, b) => a.article.sort_order - b.article.sort_order);
+    .sort((a, b) => a.article.name.localeCompare(b.article.name, 'de-CH'));
 
   if (!items.length) {
     el('admin-content').innerHTML = '<p class="empty">Noch keine Artikel in diesem Päckli.</p>';
@@ -679,7 +679,7 @@ function renderAdminOrphans() {
   const box = el('admin-orphans');
   const orphans = state.articles
     .filter((a) => !state.content.some((c) => c.article_id === a.id))
-    .sort((a, b) => a.sort_order - b.sort_order);
+    .sort((a, b) => a.name.localeCompare(b.name, 'de-CH'));
 
   if (!orphans.length) { box.innerHTML = ''; return; }
 
@@ -822,11 +822,9 @@ async function addArticle() {
   let article = state.articles.find(
     (a) => a.name.trim().toLowerCase() === name.toLowerCase());
   if (!article) {
-    const maxOrder = state.articles.reduce((m, a) => Math.max(m, a.sort_order), 0);
     const { data, error } = await db.from('articles').insert({
       name,
-      notes: el('new-notes').value.trim() || null,
-      sort_order: maxOrder + 10
+      notes: el('new-notes').value.trim() || null
     }).select().single();
     if (error) { msg.className = 'muted err'; msg.textContent = 'Fehler: ' + error.message; return; }
     article = data;

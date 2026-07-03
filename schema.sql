@@ -77,16 +77,15 @@ create table public.parcels (
   name         text not null,                                  -- "Erwachsene", "Kinder"
   abbreviation text not null,                                  -- "E", "K"
   number       int  not null default 0 check (number >= 0),    -- Anzahl Päckli (Ziel)
-  sort_order   int  not null default 0,
   created_at   timestamptz not null default now()
 );
 
 -- Artikel (ohne Mengen – die Menge je Päckli steht in parcel_content).
+-- Anzeige-Reihenfolge: alphabetisch nach `name` (kein eigenes Sortierfeld).
 create table public.articles (
   id          uuid primary key default gen_random_uuid(),
   name        text not null,
   notes       text,                                            -- freie Notiz (optional)
-  sort_order  int  not null default 0,
   created_at  timestamptz not null default now()
 );
 
@@ -128,7 +127,6 @@ with (security_invoker = true) as
     a.id,
     a.name,
     a.notes,
-    a.sort_order,
     coalesce(n.total_needed, 0)                                 as total_needed,
     coalesce(b.bought, 0)                                       as bought,
     greatest(coalesce(n.total_needed, 0) - coalesce(b.bought, 0), 0) as still_needed
@@ -257,53 +255,54 @@ create policy purchases_delete on public.purchases
 -- ============================================================
 
 -- Päckli-Typen.
-insert into public.parcels (name, abbreviation, number, sort_order) values
-  ('Erwachsene', 'E',  50, 10),
-  ('Kinder',     'K', 100, 20);
+insert into public.parcels (name, abbreviation, number) values
+  ('Erwachsene', 'E',  50),
+  ('Kinder',     'K', 100);
 
--- Artikel (ohne Mengen, ohne Notizen).
-insert into public.articles (name, sort_order) values
-  ('Mehl',                       10),
-  ('Reis',                       20),
-  ('Zucker',                     30),
-  ('Teigwaren',                  40),
-  ('Schokolade',                 50),
-  ('Biskuits (Päckli)',          60),
-  ('Kaffee (gemahlen/instant)',  70),
-  ('Tee',                        80),
-  ('Süssigkeiten',               90),
-  ('Zahnpasta',                 100),
-  ('Zahnbürste',                110),
-  ('Seife (in Alufolie)',       120),
-  ('Shampoo (Deckel verklebt)', 130),
-  ('Schreibpapier / Hefte',     140),
-  ('Kugelschreiber',            150),
-  ('Bleistift',                 160),
-  ('Gummi',                     170),
-  ('Spitzer',                   180),
-  ('Farbstifte',                190),
-  ('Spielzeug: Plüschtier',     200),
-  ('Spielzeug: Gumpibälle',     210),
-  ('Spielzeug: Autöli',         220),
-  ('Spielzeug: Tennisbälle',    230),
-  ('Spielzeug: Marmeli',        240),
-  ('Spielzeug: Div.',           250),
-  ('Ansichtskarten',            260),
-  ('Kerzen',                    270),
-  ('Streichhölzer 10er-Päckli', 280),
-  ('Schnur',                    290),
-  ('Socken Kinder',             300),
-  ('Socken Erwachsene',         310),
-  ('Mützen Kinder',             320),
-  ('Mützen Erwachsene',         330),
-  ('Handschuhe Kinder',         340),
-  ('Handschuhe Erwachsene',     350),
-  ('Decken/Pullis Kinder',      360),
-  ('Schals Erwachsene',         370),
-  ('Schachteln Kinder',         380),
-  ('Schachteln Erwachsene',     390),
-  ('Geschenkpapier',            400),
-  ('Pyjama Kinder',             410)
+-- Artikel (ohne Mengen, ohne Notizen). Anzeige-Reihenfolge ist alphabetisch,
+-- die Reihenfolge hier ist daher beliebig.
+insert into public.articles (name) values
+  ('Mehl'),
+  ('Reis'),
+  ('Zucker'),
+  ('Teigwaren'),
+  ('Schokolade'),
+  ('Biskuits (Päckli)'),
+  ('Kaffee (gemahlen/instant)'),
+  ('Tee'),
+  ('Süssigkeiten'),
+  ('Zahnpasta'),
+  ('Zahnbürste'),
+  ('Seife (in Alufolie)'),
+  ('Shampoo (Deckel verklebt)'),
+  ('Schreibpapier / Hefte'),
+  ('Kugelschreiber'),
+  ('Bleistift'),
+  ('Gummi'),
+  ('Spitzer'),
+  ('Farbstifte'),
+  ('Spielzeug: Plüschtier'),
+  ('Spielzeug: Gumpibälle'),
+  ('Spielzeug: Autöli'),
+  ('Spielzeug: Tennisbälle'),
+  ('Spielzeug: Marmeli'),
+  ('Spielzeug: Div.'),
+  ('Ansichtskarten'),
+  ('Kerzen'),
+  ('Streichhölzer 10er-Päckli'),
+  ('Schnur'),
+  ('Socken Kinder'),
+  ('Socken Erwachsene'),
+  ('Mützen Kinder'),
+  ('Mützen Erwachsene'),
+  ('Handschuhe Kinder'),
+  ('Handschuhe Erwachsene'),
+  ('Decken/Pullis Kinder'),
+  ('Schals Erwachsene'),
+  ('Schachteln Kinder'),
+  ('Schachteln Erwachsene'),
+  ('Geschenkpapier'),
+  ('Pyjama Kinder')
 on conflict do nothing;
 
 -- Zusammensetzung: (Artikel, Päckli-Kürzel, Menge je Päckli), nur Menge > 0.

@@ -99,6 +99,36 @@ schon genug da ist und was noch fehlt.
 > grant update (first_name, last_name, contact_phone)
 >   on public.profiles to authenticated;
 > ```
+>
+> `sort_order` wurde entfernt: `articles` wird jetzt alphabetisch sortiert
+> angezeigt, `parcels` ohne festgelegte Reihenfolge (nur zwei Einträge).
+> ```sql
+> drop view if exists public.article_status;
+> alter table public.parcels  drop column if exists sort_order;
+> alter table public.articles drop column if exists sort_order;
+>
+> create or replace view public.article_status
+> with (security_invoker = true) as
+>   select
+>     a.id,
+>     a.name,
+>     a.notes,
+>     coalesce(n.total_needed, 0)                                 as total_needed,
+>     coalesce(b.bought, 0)                                       as bought,
+>     greatest(coalesce(n.total_needed, 0) - coalesce(b.bought, 0), 0) as still_needed
+>   from public.articles a
+>   left join (
+>     select pc.article_id, sum(pc.quantity * p.number) as total_needed
+>     from public.parcel_content pc
+>     join public.parcels p on p.id = pc.parcel_id
+>     group by pc.article_id
+>   ) n on n.article_id = a.id
+>   left join (
+>     select article_id, sum(quantity) as bought
+>     from public.purchases
+>     group by article_id
+>   ) b on b.article_id = a.id;
+> ```
 
 ### 3. E-Mail-Bestätigung deaktivieren
 
