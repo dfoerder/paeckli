@@ -307,12 +307,16 @@ function renderOverview() {
 
   const banner = deadlineBanner();
 
-  if (!list.length) {
+  // Nur Artikel zeigen, die aktuell in mindestens einem Päckli enthalten sind –
+  // sonst tauchen z.B. aus einem Päckli entfernte Artikel mit 0/0 auf.
+  const visible = list.filter((a) => a.total_needed > 0);
+
+  if (!visible.length) {
     el('overview-list').innerHTML = banner + '<p class="empty">Noch keine Artikel angelegt.</p>';
     return;
   }
 
-  el('overview-list').innerHTML = banner + list.map((a) => {
+  el('overview-list').innerHTML = banner + visible.map((a) => {
     const done = a.total_needed > 0 && a.bought >= a.total_needed;
     const pctItem = a.total_needed ? Math.min(100, Math.round((a.bought / a.total_needed) * 100)) : 100;
     const pill = done
