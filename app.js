@@ -397,10 +397,13 @@ function renderOverview() {
         <div class="item ${done ? 'complete' : 'missing'}">
           <div class="head">
             <span class="name">${esc(a.name)}</span>
-            <span class="count"><span class="${done ? 'done' : ''}">${a.bought}</span> / ${a.total_needed}</span>
+            <span class="head-right">
+              <span class="count"><span class="${done ? 'done' : ''}">${a.bought}</span> / ${a.total_needed}</span>
+              ${pill}
+            </span>
           </div>
           <div class="bar"><span style="width:${pctItem}%"></span></div>
-          <div class="sub">${pill}${a.notes ? ' · ' + esc(a.notes) : ''}</div>
+          ${a.notes ? `<div class="sub">${esc(a.notes)}</div>` : ''}
         </div>`;
     }).join('')}`).join('');
 }

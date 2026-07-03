@@ -231,9 +231,22 @@ code { background: var(--track); padding: 1px 5px; border-radius: 5px; }
   align-items: baseline;
   gap: 8px;
 }
-.item .name { font-weight: 600; }
+.item .name {
+  font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  min-width: 0;
+}
 .item .count { font-size: 0.85rem; color: var(--text-light); white-space: nowrap; }
 .item .count .done { color: var(--success); font-weight: 700; }
+.head-right {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  flex-shrink: 0;
+  white-space: nowrap;
+}
 .bar {
   height: 8px;
   background: var(--track);
