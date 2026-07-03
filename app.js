@@ -451,9 +451,25 @@ function renderAllPurchases() {
     return;
   }
 
+  // Suche über Käufer:in-Name, Spender:in ODER Artikelname: passt der Name,
+  // bleiben alle Käufe dieser Person sichtbar; passt nur Artikel/Spender:in,
+  // nur die passenden Zeilen.
+  const query = el('admin-purchases-search').value;
+  const purchases = query.trim()
+    ? state.allPurchases.filter((p) =>
+        matches(fullName(p.profiles) || 'Unbekannt', query) ||
+        matches(p.articles?.name || '', query) ||
+        matches(p.donor || '', query))
+    : state.allPurchases;
+
+  if (!purchases.length) {
+    box.innerHTML = '<p class="empty">Keine Käufe gefunden.</p>';
+    return;
+  }
+
   // Nach Käufer:in gruppieren (Reihenfolge aus der bereits sortierten Liste).
   const groups = [];
-  for (const p of state.allPurchases) {
+  for (const p of purchases) {
     const name = fullName(p.profiles) || 'Unbekannt';
     let g = groups.find((x) => x.name === name);
     if (!g) {
@@ -989,6 +1005,7 @@ function wireEvents() {
   el('overview-search')?.addEventListener('input', renderOverview);
   el('admin-articles-search')?.addEventListener('input', renderArticleList);
   el('admin-content-search')?.addEventListener('input', renderAdminContent);
+  el('admin-purchases-search')?.addEventListener('input', renderAllPurchases);
   $$('#admin-nav .pkg-btn').forEach((b) =>
     b.addEventListener('click', () => setAdminPage(b.dataset.adminPage)));
 
