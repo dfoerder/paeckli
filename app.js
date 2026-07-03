@@ -626,7 +626,7 @@ function renderPackages() {
 //  Ansicht: Admin
 // ============================================================
 function renderAdmin() {
-  // Ziele: ein Anzahl-Feld je Päckli-Typ.
+  // Sammlungen: ein Anzahl-Feld je Päckli-Typ.
   el('goal-parcels').innerHTML = state.parcels.map((p) => `
     <label>${esc(p.name)} (${esc(p.abbreviation)})</label>
     <input type="number" min="0" step="1" inputmode="numeric"
@@ -636,7 +636,7 @@ function renderAdmin() {
     ? new Date(state.campaign.target_date + 'T00:00:00')
         .toLocaleDateString('de-CH', { day: 'numeric', month: 'long', year: 'numeric' })
     : '';
-  el('goal-heading').textContent = ds ? `Ziele ${ds}` : 'Ziele';
+  el('goal-heading').textContent = ds ? `Sammlungen ${ds}` : 'Sammlungen';
 
   renderAllPurchases();
   renderAdminArticles();

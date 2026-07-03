@@ -16,7 +16,7 @@ schon genug da ist und was noch fehlt.
   Login-E-Mail und nicht änderbar; wer eine andere Adresse will, registriert
   ein neues Konto.
 - **Päckli-Zusammensetzung** – was kommt in welchen Päckli-Typ (Erwachsene/Kinder).
-- **Admin** – Artikelliste (inkl. Menge je Päckli-Typ) und Ziele (Anzahl Päckli) verwalten.
+- **Admin** – Artikelliste (inkl. Menge je Päckli-Typ) und Sammlungen (Anzahl Päckli) verwalten.
 
 ## Tech-Stack
 

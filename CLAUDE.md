@@ -56,7 +56,7 @@ paeckli/
 
 - Alle Angemeldeten dürfen **lesen** (Transparenz des Bestands).
 - Käufe: jede:r legt eigene an / ändert / löscht eigene; Admin darf alle.
-- Artikel, Päckli, Zusammensetzung & Ziele: nur **Admin** (`is_admin = true`) schreiben.
+- Artikel, Päckli, Zusammensetzung & Sammlungen (Ziele): nur **Admin** (`is_admin = true`) schreiben.
 - Admin-Check via `public.is_admin()` (security definer, verhindert RLS-Rekursion).
 - Erste:r Admin wird manuell gesetzt (`update profiles set is_admin=true …`).
 - **Löschregeln** (FK `on delete restrict` auf `article_id`): Artikel sind nur
@@ -75,8 +75,9 @@ Anzeige, = Login-E-Mail – erreichbar über Klick auf den Namen in der
 Kopfzeile, kein eigener Tab), `packages`
 (Päckli-Zusammensetzung je `parcel` aus `parcel_content`, Toggle dynamisch je
 Päckli-Typ), `admin` (nur für Admin; interne Unterseiten via
-`state.adminPage` + 4 Buttons oben, jeweils nur eine sichtbar: **Ziele**
-(Anzahl Päckli je Typ, Stichtag), **Alle Käufe** (alle Käufe gruppiert nach
+`state.adminPage` + 4 Buttons oben, jeweils nur eine sichtbar: **Sammlungen**
+(intern weiterhin `adminPage: 'goals'`/`#admin-page-goals`; Anzahl Päckli je
+Typ, Stichtag), **Alle Käufe** (alle Käufe gruppiert nach
 Käufer:in inkl. Kontaktangabe für Rückfragen), **Artikel** (alle Artikel
 unabhängig von Päckli-Zuordnung; zwei Modi via `state.articleEditId`: Liste
 nach `category` gruppiert mit „Ändern"-Knopf je Artikel, oder Änderungsansicht
