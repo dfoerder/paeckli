@@ -77,6 +77,28 @@ schon genug da ist und was noch fehlt.
 > alter table public.purchases add column if not exists shop text;
 > alter table public.purchases add column if not exists donor text;
 > ```
+>
+> Für die Löschregeln (Artikel mit Käufen oder Päckli-Zuordnung sind nicht
+> löschbar) und die abgesicherten `profiles`-Spaltenrechte (verhindert, dass
+> sich jemand per API selbst zum Admin macht):
+> ```sql
+> -- Artikel mit Käufen dürfen nicht gelöscht werden (vorher: Käufe wurden still mitgelöscht).
+> alter table public.purchases drop constraint if exists purchases_article_id_fkey;
+> alter table public.purchases add constraint purchases_article_id_fkey
+>   foreign key (article_id) references public.articles (id) on delete restrict;
+>
+> -- Artikel müssen erst aus allen Päckli entfernt werden, bevor sie löschbar sind.
+> alter table public.parcel_content drop constraint if exists parcel_content_article_id_fkey;
+> alter table public.parcel_content add constraint parcel_content_article_id_fkey
+>   foreign key (article_id) references public.articles (id) on delete restrict;
+>
+> -- profiles: is_admin & contact_email nicht selbst änderbar (Spaltenrechte).
+> revoke insert, update on public.profiles from authenticated;
+> grant insert (id, first_name, last_name, contact_email, contact_phone)
+>   on public.profiles to authenticated;
+> grant update (first_name, last_name, contact_phone)
+>   on public.profiles to authenticated;
+> ```
 
 ### 3. E-Mail-Bestätigung deaktivieren
 

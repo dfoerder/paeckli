@@ -632,6 +632,9 @@ function renderAdminContent() {
   const parcel = state.parcels.find((p) => p.id === state.adminParcel);
   el('new-hint').textContent = parcel ? `Neuer Artikel für: ${parcel.name}` : '';
 
+  // Artikel ohne Päckli-Zuordnung immer anzeigen (unabhängig vom gewählten Päckli).
+  renderAdminOrphans();
+
   if (!parcel) {
     el('admin-content').innerHTML = '<p class="empty">Noch keine Päckli-Typen angelegt.</p>';
     return;
@@ -660,7 +663,6 @@ function renderAdminContent() {
       <div class="row-actions">
         <button class="secondary" data-save="${x.article.id}">Speichern</button>
         <button class="ghost" data-remove="${x.article.id}">Aus Päckli entfernen</button>
-        <button class="ghost" data-delart="${x.article.id}">Artikel löschen</button>
       </div>
     </div>`).join('');
 
@@ -668,7 +670,39 @@ function renderAdminContent() {
     b.addEventListener('click', () => saveArticle(b.dataset.save)));
   $$('#admin-content [data-remove]').forEach((b) =>
     b.addEventListener('click', () => removeFromParcel(b.dataset.remove)));
-  $$('#admin-content [data-delart]').forEach((b) =>
+}
+
+// Artikel, die in keinem Päckli mehr enthalten sind: Nur hier können sie
+// endgültig gelöscht werden (Löschregel: erst aus allen Päckli entfernen).
+// Mit Käufen bleiben sie gesperrt – Käufe stehen für vorhandene Ware.
+function renderAdminOrphans() {
+  const box = el('admin-orphans');
+  const orphans = state.articles
+    .filter((a) => !state.content.some((c) => c.article_id === a.id))
+    .sort((a, b) => a.sort_order - b.sort_order);
+
+  if (!orphans.length) { box.innerHTML = ''; return; }
+
+  box.innerHTML = `
+    <h2 class="view-title" style="margin-top:20px">Artikel ohne Päckli</h2>
+    <p class="muted" style="margin:0 4px 10px">Aus allen Päckli entfernt.
+      Hier wieder zuordnen (unten als „Neuer Artikel" mit gleichem Namen) oder endgültig löschen.</p>
+    ${orphans.map((a) => {
+      const bought = state.status.find((s) => s.id === a.id)?.bought || 0;
+      return `
+        <div class="item">
+          <div class="head">
+            <span class="name">${esc(a.name)}</span>
+            ${bought ? `<span class="count">${bought} gekauft</span>` : ''}
+          </div>
+          ${bought ? '<div class="sub">Wurde bereits gekauft und kann deshalb nicht gelöscht werden.</div>' : ''}
+          <div class="row-actions">
+            <button class="ghost" data-delart="${a.id}" ${bought ? 'disabled' : ''}>Endgültig löschen</button>
+          </div>
+        </div>`;
+    }).join('')}`;
+
+  $$('#admin-orphans [data-delart]').forEach((b) =>
     b.addEventListener('click', () => deleteArticle(b.dataset.delart)));
 }
 
@@ -741,10 +775,37 @@ async function removeFromParcel(id) {
   await reload();
 }
 
+// Artikel endgültig löschen. Die Regeln (nicht löschbar, solange in einem
+// Päckli enthalten oder schon gekauft) erzwingt die DB per `on delete
+// restrict`; hier werden sie vorab geprüft für verständliche Meldungen.
 async function deleteArticle(id) {
-  if (!confirm('Artikel inkl. aller zugehörigen Käufe löschen?')) return;
+  const name = state.articles.find((a) => a.id === id)?.name || 'Artikel';
+
+  const inParcels = state.content
+    .filter((c) => c.article_id === id)
+    .map((c) => state.parcels.find((p) => p.id === c.parcel_id)?.name)
+    .filter(Boolean);
+  if (inParcels.length) {
+    alert(`„${name}" ist noch enthalten in: ${inParcels.join(', ')}.\n` +
+      'Bitte zuerst überall „Aus Päckli entfernen".');
+    return;
+  }
+
+  const bought = state.status.find((s) => s.id === id)?.bought || 0;
+  if (bought > 0) {
+    alert(`„${name}" wurde bereits ${bought}× gekauft und kann deshalb nicht gelöscht werden.`);
+    return;
+  }
+
+  if (!confirm(`„${name}" endgültig löschen?`)) return;
   const { error } = await db.from('articles').delete().eq('id', id);
-  if (error) { alert('Fehler: ' + error.message); return; }
+  if (error) {
+    // 23503 = Fremdschlüssel-Verletzung: jemand hat inzwischen gekauft/zugeordnet.
+    alert(error.code === '23503'
+      ? `„${name}" kann nicht gelöscht werden: Inzwischen gibt es dazu wieder Käufe oder eine Päckli-Zuordnung.`
+      : 'Fehler: ' + error.message);
+    return;
+  }
   await reload();
 }
 

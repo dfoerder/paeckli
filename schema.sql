@@ -91,10 +91,12 @@ create table public.articles (
 );
 
 -- Zusammensetzung: wie viele Stück eines Artikels in einen Päckli-Typ gehören.
+-- article_id mit `restrict`: Ein Artikel muss erst aus allen Päckli entfernt
+-- werden, bevor er gelöscht werden kann (kein stilles Mitlöschen).
 create table public.parcel_content (
   id          uuid primary key default gen_random_uuid(),
   parcel_id   uuid not null references public.parcels  on delete cascade,
-  article_id  uuid not null references public.articles on delete cascade,
+  article_id  uuid not null references public.articles on delete restrict,
   quantity    int  not null check (quantity > 0),
   unique (parcel_id, article_id)
 );
@@ -102,9 +104,11 @@ create index if not exists parcel_content_parcel_idx  on public.parcel_content (
 create index if not exists parcel_content_article_idx on public.parcel_content (article_id);
 
 -- Käufe der Teilnehmenden.
+-- article_id mit `restrict`: Ein Artikel, den schon jemand gekauft hat, kann
+-- nicht gelöscht werden – Käufe stehen für physisch vorhandene Ware.
 create table public.purchases (
   id          uuid primary key default gen_random_uuid(),
-  article_id  uuid not null references public.articles on delete cascade,
+  article_id  uuid not null references public.articles on delete restrict,
   user_id     uuid not null references public.profiles on delete cascade default auth.uid(),
   quantity    int  not null check (quantity > 0),
   note        text,
@@ -178,6 +182,18 @@ create policy profiles_insert on public.profiles
 drop policy if exists profiles_update on public.profiles;
 create policy profiles_update on public.profiles
   for update to authenticated using (id = auth.uid()) with check (id = auth.uid());
+
+-- Spaltenrechte: RLS prüft nur, WELCHE Zeile geändert wird – nicht welche
+-- Spalten. Ohne diese Grants könnte sich jede angemeldete Person per API
+-- selbst `is_admin = true` setzen oder die Kontakt-E-Mail ändern. Deshalb:
+-- Schreibrechte auf die harmlosen Spalten beschränken (contact_email nur beim
+-- Anlegen, da sie dann aus der Login-E-Mail übernommen wird).
+-- `is_admin` wird weiterhin manuell im SQL Editor / Table Editor gesetzt.
+revoke insert, update on public.profiles from authenticated;
+grant insert (id, first_name, last_name, contact_email, contact_phone)
+  on public.profiles to authenticated;
+grant update (first_name, last_name, contact_phone)
+  on public.profiles to authenticated;
 
 -- campaign: alle lesen, nur Admin ändern.
 drop policy if exists campaign_select on public.campaign;

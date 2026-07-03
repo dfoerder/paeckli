@@ -59,6 +59,12 @@ paeckli/
 - Artikel, Päckli, Zusammensetzung & Ziele: nur **Admin** (`is_admin = true`) schreiben.
 - Admin-Check via `public.is_admin()` (security definer, verhindert RLS-Rekursion).
 - Erste:r Admin wird manuell gesetzt (`update profiles set is_admin=true …`).
+- **Löschregeln** (FK `on delete restrict` auf `article_id`): Artikel sind nur
+  löschbar, wenn sie in keinem Päckli mehr enthalten sind **und** keine Käufe
+  haben. Die App prüft das vorab für verständliche Meldungen; die DB erzwingt es.
+- **Spaltenrechte auf `profiles`**: `insert`/`update` für `authenticated` sind
+  auf harmlose Spalten begrenzt (`is_admin` und `contact_email` nicht selbst
+  änderbar – RLS allein prüft nur Zeilen, nicht Spalten).
 
 ## Ansichten (`showView(name)`)
 
@@ -73,8 +79,10 @@ Päckli-Typ), `admin` (nur für Admin; interne Unterseiten via
 (Anzahl Päckli je Typ, Stichtag), **Alle Käufe** (alle Käufe gruppiert nach
 Käufer:in inkl. Kontaktangabe für Rückfragen), **Päckli-Inhalt** (dieselbe
 Päckli-Darstellung wie `packages`, aber editierbar: Menge/Name/Notiz ändern,
-„Aus Päckli entfernen" = nur `parcel_content`-Zeile, „Artikel löschen" =
-ganzer Artikel; unten neuer Artikel fürs gewählte Päckli, Reuse-by-Name)).
+„Aus Päckli entfernen" = nur `parcel_content`-Zeile; darunter Abschnitt
+„Artikel ohne Päckli": aus allen Päckli entfernte Artikel, nur dort endgültig
+löschbar und nur ohne Käufe (sonst gesperrt, siehe Löschregeln); unten neuer
+Artikel fürs gewählte Päckli, Reuse-by-Name)).
 
 ## State-Objekt
 
