@@ -40,7 +40,8 @@ const state = {
   pkgParcel: null,    // id des in der Päckli-Ansicht gewählten Päckli-Typs
   adminParcel: null,  // id des im Admin gewählten Päckli-Typs (unabhängig)
   adminPage: 'goals', // aktive Unterseite im Admin-Tab: goals | purchases | articles | content
-  articleEditId: null // Artikel-Seite: id des Artikels in der Änderungsansicht (null = Liste)
+  articleEditId: null, // Artikel-Seite: id des Artikels in der Änderungsansicht (null = Liste)
+  goalsEditing: false  // Sammlungen-Seite: false = Anzeige der aktiven Sammlung, true = Bearbeitungsmodus
 };
 
 // Menge eines Artikels in einem bestimmten Päckli-Typ (0, falls nicht enthalten).
@@ -689,11 +690,54 @@ function renderAdmin() {
     p.classList.toggle('hidden', p.id !== 'admin-page-' + state.adminPage));
 }
 
-// Admin-Unterseite „Sammlungen": Umschalter über alle Sammlungen (neueste
-// zuerst, aktive markiert), darunter Titel/Stichtag/Päckli-Ziele der gerade
-// BETRACHTETEN Sammlung (state.viewedCampaignId; muss nicht die aktive sein –
-// frühere Sammlungen bleiben einsehbar).
+// Admin-Unterseite „Sammlungen": zwei Modi je nach state.goalsEditing.
+// Anzeige (Standard): nur die AKTIVE Sammlung, read-only, mit „Bearbeiten"-
+// Knopf. Bearbeitungsmodus: Umschalter über alle Sammlungen (frühere bleiben
+// einsehbar/editierbar über state.viewedCampaignId) + Titel/Stichtag/Ziele.
 function renderGoals() {
+  el('goals-view').classList.toggle('hidden', state.goalsEditing);
+  el('goals-edit-back').classList.toggle('hidden', !state.goalsEditing);
+  el('goals-edit').classList.toggle('hidden', !state.goalsEditing);
+  el('admin-new-campaign').classList.toggle('hidden', state.goalsEditing);
+
+  if (state.goalsEditing) {
+    renderGoalsEdit();
+  } else {
+    renderGoalsView();
+  }
+}
+
+function renderGoalsView() {
+  const c = state.campaign;
+  el('goals-view-title').textContent = c.title || 'Sammlung';
+
+  const dateTxt = c.target_date
+    ? new Date(c.target_date + 'T00:00:00').toLocaleDateString('de-CH', { day: 'numeric', month: 'long', year: 'numeric' })
+    : 'kein Stichtag gesetzt';
+  const parcelRows = state.parcels.length
+    ? state.parcels.map((p) => `<div class="sub">${esc(p.name)} (${esc(p.abbreviation)}): ${p.number}</div>`).join('')
+    : '<p class="sub">Noch keine Päckli-Typen angelegt.</p>';
+
+  el('goals-view-info').innerHTML = `
+    <p class="muted" style="margin:0 0 10px">Stichtag: ${esc(dateTxt)}</p>
+    <p class="muted" style="margin:0 0 4px">Anzahl Päckli je Typ</p>
+    ${parcelRows}
+  `;
+}
+
+async function startEditGoals() {
+  state.goalsEditing = true;
+  state.viewedCampaignId = state.campaign.id; // Bearbeiten startet immer bei der aktiven Sammlung
+  await loadViewedCampaignParcels();
+  renderGoals();
+}
+
+function cancelEditGoals() {
+  state.goalsEditing = false;
+  renderGoals();
+}
+
+function renderGoalsEdit() {
   el('goal-campaign-select').innerHTML = state.campaigns.map((c) => {
     const label = (c.title || 'Sammlung') + (c.id === state.campaign.id ? ' (aktuell)' : '');
     return `<option value="${c.id}" ${c.id === state.viewedCampaignId ? 'selected' : ''}>${esc(label)}</option>`;
@@ -712,12 +756,13 @@ function renderGoals() {
 async function setViewedCampaign(id) {
   state.viewedCampaignId = id;
   await loadViewedCampaignParcels();
-  renderGoals();
+  renderGoalsEdit();
 }
 
 function setAdminPage(page) {
   state.adminPage = page;
   state.articleEditId = null; // beim Wechsel der Unterseite zurück zur Artikel-Liste
+  state.goalsEditing = false; // ... und zurück zur Sammlungen-Anzeige
   renderAdmin();
 }
 
@@ -1153,6 +1198,8 @@ function wireEvents() {
   el('profile-password-btn')?.addEventListener('click', changePassword);
   el('goal-btn')?.addEventListener('click', saveGoals);
   el('goal-campaign-select')?.addEventListener('change', (e) => setViewedCampaign(e.target.value));
+  el('goals-edit-btn')?.addEventListener('click', startEditGoals);
+  el('goals-edit-back')?.addEventListener('click', cancelEditGoals);
   el('new-campaign-btn')?.addEventListener('click', createCampaign);
   el('new-btn')?.addEventListener('click', addArticle);
   el('art-btn')?.addEventListener('click', addStandaloneArticle);

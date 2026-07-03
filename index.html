@@ -141,14 +141,21 @@
     <!-- Admin -->
     <main id="view-admin" class="view hidden">
       <div id="admin-nav" class="pkg-toggle">
-        <button class="pkg-btn" data-admin-page="goals">Sammlungen</button>
+        <button class="pkg-btn" data-admin-page="goals">Sammlung</button>
         <button class="pkg-btn" data-admin-page="purchases">Alle Käufe</button>
         <button class="pkg-btn" data-admin-page="articles">Artikel</button>
         <button class="pkg-btn" data-admin-page="content">Päckli-Inhalt</button>
       </div>
 
       <div id="admin-page-goals" class="admin-page">
-        <div class="card">
+        <div id="goals-view" class="card">
+          <h2 id="goals-view-title">Sammlung</h2>
+          <div id="goals-view-info"></div>
+          <button id="goals-edit-btn" class="secondary">Bearbeiten</button>
+        </div>
+
+        <button class="ghost hidden" id="goals-edit-back">← Zurück</button>
+        <div id="goals-edit" class="card hidden">
           <h2>Sammlung bearbeiten</h2>
           <label for="goal-campaign-select">Sammlung</label>
           <select id="goal-campaign-select"></select>
@@ -162,7 +169,7 @@
           <p id="goal-msg" class="muted"></p>
         </div>
 
-        <div class="card">
+        <div id="admin-new-campaign" class="card">
           <h3>Neue Sammlung</h3>
           <label for="new-campaign-title">Titel</label>
           <input type="text" id="new-campaign-title" placeholder="z.B. Weihnachtspäckli-Aktion 2027">
@@ -236,7 +243,7 @@
       </div>
     </main>
 
-    <footer id="app-footer">v2.1b · 3. Juli 2026</footer>
+    <footer id="app-footer">v2.2b · 3. Juli 2026</footer>
   </div>
 
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>

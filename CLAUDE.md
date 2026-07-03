@@ -80,17 +80,22 @@ Kopfzeile, kein eigener Tab), `packages`
 (Päckli-Zusammensetzung je `parcel` aus `parcel_content`, Toggle dynamisch je
 Päckli-Typ), `admin` (nur für Admin; interne Unterseiten via
 `state.adminPage` + 4 Buttons oben, jeweils nur eine sichtbar: **Sammlungen**
-(intern weiterhin `adminPage: 'goals'`/`#admin-page-goals`; Umschalter über
-alle `state.campaigns` (neueste zuerst, aktive markiert „(aktuell)"), zeigt/
-editiert Titel, Stichtag und Päckli-Ziele der über `state.viewedCampaignId`
-gewählten Sammlung – muss nicht die aktive sein, ältere bleiben einsehbar
-(`loadViewedCampaignParcels()` lädt bei Bedarf deren Päckli-Typen separat
-nach, da `state.parcels` immer nur die AKTIVE Sammlung enthält); unten
-„Neue Sammlung": Titel + Checkbox „Päckli-Zusammensetzung übernehmen"
-(`createCampaign()` → `copyParcelsToNewCampaign()` dupliziert `parcels` +
-`parcel_content` der bisher aktiven Sammlung, Artikel bleiben dieselben).
-Eine neu angelegte Sammlung wird automatisch zur aktiven, da „aktiv" = die
-zuletzt erstellte Sammlung ist), **Alle Käufe** (nur der aktiven Sammlung,
+(intern weiterhin `adminPage: 'goals'`/`#admin-page-goals`; zwei Modi via
+`state.goalsEditing`: Anzeige (Standard) zeigt nur die AKTIVE Sammlung
+read-only (Titel, Stichtag, Päckli-Ziele) mit „Bearbeiten"-Knopf; Bearbeitungs-
+modus zeigt zusätzlich einen Umschalter über alle `state.campaigns` (neueste
+zuerst, aktive markiert „(aktuell)") und macht Titel/Stichtag/Päckli-Ziele der
+über `state.viewedCampaignId` gewählten Sammlung editierbar – muss nicht die
+aktive sein, ältere bleiben einsehbar/editierbar (`loadViewedCampaignParcels()`
+lädt bei Bedarf deren Päckli-Typen separat nach, da `state.parcels` immer nur
+die AKTIVE Sammlung enthält); „Bearbeiten" startet immer bei der aktiven
+Sammlung, „← Zurück" verwirft ohne zu speichern. „Neue Sammlung" (Titel +
+Checkbox „Päckli-Zusammensetzung übernehmen") nur im Anzeige-Modus sichtbar
+(analog zu „Neuer Artikel" auf der Artikel-Seite); `createCampaign()` →
+`copyParcelsToNewCampaign()` dupliziert `parcels` + `parcel_content` der
+bisher aktiven Sammlung, Artikel bleiben dieselben. Eine neu angelegte
+Sammlung wird automatisch zur aktiven, da „aktiv" = die zuletzt erstellte
+Sammlung ist), **Alle Käufe** (nur der aktiven Sammlung,
 gruppiert nach Käufer:in inkl. Kontaktangabe für Rückfragen), **Artikel** (alle Artikel
 unabhängig von Päckli-Zuordnung; zwei Modi via `state.articleEditId`: Liste
 nach `category` gruppiert mit „Ändern"-Knopf je Artikel, oder Änderungsansicht
