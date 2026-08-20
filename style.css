@@ -148,6 +148,43 @@ input, select, textarea {
 input:disabled { background: var(--card); color: var(--text-light); }
 input.search-input { margin-bottom: 14px; }
 
+/* Vorschlagsliste unter dem Namensfeld ("Artikel zu Päckli hinzufügen"):
+   zeigt beim Tippen passende bestehende Artikel zum Antippen. */
+.suggest {
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: #fff;
+  margin-top: 6px;
+  overflow: hidden;
+}
+.suggest button {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  width: 100%;
+  min-height: 48px;
+  margin: 0;
+  padding: 10px 12px;
+  border: 0;
+  border-bottom: 1px solid var(--border);
+  border-radius: 0;
+  background: #fff;
+  color: var(--text);
+  font-size: 0.95rem;
+  text-align: left;
+  touch-action: manipulation;
+}
+.suggest button:last-child { border-bottom: 0; }
+.suggest button:active { background: var(--track); }
+.suggest .suggest-cat { color: var(--text-light); font-size: 0.8rem; white-space: nowrap; }
+.suggest .suggest-more {
+  padding: 8px 12px;
+  color: var(--text-light);
+  font-size: 0.8rem;
+  border-top: 1px solid var(--border);
+}
+
 /* Checkbox-Zeile (z.B. "Päckli-Zusammensetzung übernehmen"): ganze Zeile als
    Touch-Target, nicht nur die kleine native Checkbox. */
 .checkbox-row {

@@ -768,6 +768,7 @@ function setAdminPage(page) {
 
 function setAdminParcel(id) {
   state.adminParcel = id;
+  hideNameSuggestions();  // Vorschläge zeigen "im Päckli" – gilt fürs alte Päckli
   renderAdminContent();   // nur Inhalt neu rendern (Ziel-Eingaben bleiben erhalten)
 }
 
@@ -1119,6 +1120,69 @@ async function deleteArticle(id) {
   await reload();
 }
 
+// Vorschlagsliste unter dem Namensfeld: beim Tippen passende bestehende Artikel
+// anzeigen, damit man sie antippt statt sie (evtl. mit Tippfehler) neu anzulegen.
+const SUGGEST_LIMIT = 8;
+
+function renderNameSuggestions() {
+  const box = el('new-suggest');
+  const query = el('new-name').value.trim();
+  if (!query) { box.classList.add('hidden'); box.innerHTML = ''; return; }
+
+  const hits = state.articles
+    .filter((a) => matches(a.name, query))
+    // Exakte Eingabe muss nicht mehr vorgeschlagen werden.
+    .filter((a) => a.name.trim().toLowerCase() !== query.toLowerCase())
+    .sort((a, b) => a.name.localeCompare(b.name, 'de-CH'));
+
+  if (!hits.length) { box.classList.add('hidden'); box.innerHTML = ''; return; }
+
+  box.innerHTML = hits.slice(0, SUGGEST_LIMIT).map((a) => {
+    const inParcel = state.content.find(
+      (c) => c.parcel_id === state.adminParcel && c.article_id === a.id);
+    const right = inParcel ? `im Päckli · ${inParcel.quantity}×` : esc(a.category || '');
+    return `<button type="button" data-article="${a.id}">
+      <span>${esc(a.name)}</span>
+      <span class="suggest-cat">${right}</span>
+    </button>`;
+  }).join('')
+    + (hits.length > SUGGEST_LIMIT
+      ? `<div class="suggest-more">… ${hits.length - SUGGEST_LIMIT} weitere – Suche verfeinern</div>`
+      : '');
+
+  $$('#new-suggest button').forEach((b) =>
+    b.addEventListener('click', () => pickSuggestion(b.dataset.article)));
+  box.classList.remove('hidden');
+}
+
+function hideNameSuggestions() {
+  el('new-suggest').classList.add('hidden');
+  el('new-suggest').innerHTML = '';
+}
+
+// Vorschlag übernommen: Felder aus dem bestehenden Artikel füllen. Kategorie und
+// Notiz bleiben beim Hinzufügen unverändert (der Artikel wird wiederverwendet),
+// darum der Hinweis.
+function pickSuggestion(id) {
+  const article = state.articles.find((a) => a.id === id);
+  if (!article) return;
+  el('new-name').value = article.name;
+  el('new-category').value = article.category || 'Sonstiges';
+  el('new-notes').value = article.notes || '';
+
+  const inParcel = state.content.find(
+    (c) => c.parcel_id === state.adminParcel && c.article_id === article.id);
+  if (inParcel) el('new-qty').value = inParcel.quantity;
+
+  hideNameSuggestions();
+  const msg = el('new-msg');
+  msg.className = 'muted';
+  msg.textContent = inParcel
+    ? `Bereits im Päckli (${inParcel.quantity}×) – Hinzufügen setzt die Menge neu.`
+    : 'Bestehender Artikel – Kategorie und Notiz bleiben unverändert.';
+  el('new-qty').focus();
+}
+
 async function addArticle() {
   const msg = el('new-msg');
   const name = el('new-name').value.trim();
@@ -1132,6 +1196,16 @@ async function addArticle() {
   let article = state.articles.find(
     (a) => a.name.trim().toLowerCase() === name.toLowerCase());
   if (!article) {
+    // Noch kein Artikel dieses Namens: nachfragen, bevor die globale Artikelliste
+    // wächst (Tippfehler landen sonst unbemerkt als neuer Artikel darin).
+    const ok = confirm(
+      `„${name}" gibt es noch nicht in der Artikelliste.\n\n`
+      + 'Soll der Artikel neu angelegt und dem Päckli hinzugefügt werden?');
+    if (!ok) {
+      msg.className = 'muted';
+      msg.textContent = 'Abgebrochen – nichts hinzugefügt.';
+      return;
+    }
     const { data, error } = await db.from('articles').insert({
       name,
       notes: el('new-notes').value.trim() || null,
@@ -1150,6 +1224,7 @@ async function addArticle() {
   el('new-name').value = '';
   el('new-notes').value = '';
   el('new-qty').value = '1';
+  hideNameSuggestions();
   msg.className = 'muted ok';
   msg.textContent = 'Hinzugefügt ✓';
   await reload();
@@ -1202,6 +1277,17 @@ function wireEvents() {
   el('goals-edit-back')?.addEventListener('click', cancelEditGoals);
   el('new-campaign-btn')?.addEventListener('click', createCampaign);
   el('new-btn')?.addEventListener('click', addArticle);
+  el('new-name')?.addEventListener('input', renderNameSuggestions);
+  el('new-name')?.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape') hideNameSuggestions();
+  });
+  // Tipp/Klick ausserhalb schliesst die Liste (kein blur-Handler: der würde
+  // feuern, bevor der Vorschlag selbst den Klick bekommt).
+  document.addEventListener('click', (e) => {
+    if (!e.target.closest('#new-suggest') && e.target !== el('new-name')) {
+      hideNameSuggestions();
+    }
+  });
   el('art-btn')?.addEventListener('click', addStandaloneArticle);
   el('overview-search')?.addEventListener('input', renderOverview);
   el('admin-articles-search')?.addEventListener('input', renderArticleList);

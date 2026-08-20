@@ -220,7 +220,8 @@
           <h3>Artikel zu Päckli hinzufügen</h3>
           <p id="new-hint" class="muted" style="margin:0 0 8px"></p>
           <label for="new-name">Name</label>
-          <input type="text" id="new-name" placeholder="Artikelname">
+          <input type="text" id="new-name" placeholder="Artikelname" autocomplete="off">
+          <div id="new-suggest" class="suggest hidden"></div>
           <label for="new-category">Kategorie</label>
           <select id="new-category">
             <option value="Esswaren">Esswaren</option>
@@ -243,7 +244,7 @@
       </div>
     </main>
 
-    <footer id="app-footer">v2.4b · 20. August 2026</footer>
+    <footer id="app-footer">v2.5b · 20. August 2026</footer>
   </div>
 
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
