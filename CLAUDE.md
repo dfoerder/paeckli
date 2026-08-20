@@ -53,6 +53,7 @@ paeckli/
 | `purchases` | `article_id`, `campaign_id` (→ `campaigns`, `on delete restrict`), `user_id`, `quantity`, `shop` (Dropdown + Freitext „Anderer Shop…", optional), `donor` (Spender:in-Name, optional), `note`. Jeder Kauf gehört zu **genau einer** Sammlung, damit eine neue Sammlung beim Fortschritt bei 0 startet. |
 | `article_status` (View) | Eine Zeile pro (Artikel, Sammlung) mit `campaign_id`-Spalte; `total_needed`/`bought`/`still_needed` nur innerhalb derselben Sammlung berechnet. App filtert immer zusätzlich `.eq('campaign_id', state.campaign.id)`. |
 | `article_purchase_totals` (View) | Käufe je Artikel über **alle Sammlungen hinweg** (`id`, `bought`). Nur für die Löschregeln relevant – der FK `on delete restrict` auf `purchases.article_id` kennt keine Sammlungsgrenzen. |
+| `user_purchase_totals` (View) | Käufe je Person über **alle Sammlungen hinweg** (`id` = `user_id`, `purchases`, `bought`). Nur für die Löschregel bei Personen (siehe `delete_user`). |
 
 **Kernformel:** `total_needed = Σ über alle Päckli DERSELBEN Sammlung (parcel_content.quantity × parcels.number)`,
 `still_needed = max(0, total_needed − bought)`.
@@ -78,6 +79,14 @@ paeckli/
     Mailversand, bestehende Sitzungen der Person bleiben gültig. Die Funktion
     muss als Rolle `postgres` (Supabase-SQL-Editor) angelegt werden, sonst
     fehlt dem Besitzer das Schreibrecht auf `auth.users`.
+  - `delete_user(target_id)` – löscht die Zeile in `auth.users`; `profiles`,
+    Sitzungen und Anmelde-Identitäten hängen per `on delete cascade` daran.
+    **Gesperrt, sobald die Person Käufe erfasst hat** (`user_purchase_totals`,
+    über alle Sammlungen): `purchases.user_id` hängt per `on delete cascade`
+    an `profiles`, die Käufe verschwänden also mit und der Einkaufsstand
+    sänke, obwohl die Ware physisch da ist – dieselbe Logik wie bei schon
+    gekauften Artikeln. Das eigene Konto ist ebenfalls gesperrt. Braucht
+    denselben Besitzer wie `set_password`.
 - **Löschregeln** (FK `on delete restrict` auf `article_id`, sowohl bei
   `parcel_content` als auch bei `purchases`): Artikel sind nur löschbar, wenn
   sie in keinem Päckli mehr enthalten sind **und** über alle Sammlungen hinweg
@@ -135,10 +144,12 @@ Hinweistext sich aufs gewählte Päckli beziehen; der Titel „Päckli-Inhalt"
 direkt über Suchfeld und Liste, für die er gilt; Reuse-by-Name, siehe
 „Artikel zu Päckli hinzufügen" unten), **Benutzer**
 (`adminPage: 'users'`, alle `profiles` aus `state.people`: Admin-Rechte
-vergeben/entziehen und ein neues Passwort setzen – Feld bewusst `type="text"`,
+vergeben/entziehen, ein neues Passwort setzen – Feld bewusst `type="text"`,
 damit der Admin es der Person durchgeben kann, und nach dem Setzen absichtlich
-nicht geleert; ruft `set_admin`/`set_password` auf, siehe Rollen &
-Sicherheit)). Übersicht
+nicht geleert – sowie „Person löschen": gesperrt (Knopf `disabled` + Hinweis
+mit Anzahl) fürs eigene Konto und für alle mit Käufen laut
+`state.peopleTotals`; ruft `set_admin`/`set_password`/`delete_user` auf, siehe
+Rollen & Sicherheit)). Übersicht
 (`overview`) gruppiert die Artikel nach `category` (feste Reihenfolge:
 Esswaren, Hygiene, Kleidung, Schreibwaren, Spielzeug, Sonstiges).
 
@@ -178,6 +189,7 @@ const state = {
   purchases,           // eigene Käufe der AKTIVEN Sammlung
   allPurchases,        // alle Käufe der AKTIVEN Sammlung (nur Admin)
   people,              // alle Teilnehmenden (nur Admin; Admin > Benutzer)
+  peopleTotals,        // user_purchase_totals: Käufe je Person (nur Admin; Löschregel)
   view: 'overview',    // aktive Ansicht
   pkgParcel: null      // id des in der Päckli-Ansicht gewählten Päckli-Typs
 };

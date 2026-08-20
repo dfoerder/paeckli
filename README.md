@@ -23,9 +23,13 @@ schon genug da ist und was noch fehlt.
   Anlegen einer neuen Sammlung kann die Päckli-Zusammensetzung der letzten
   übernommen werden.
 - **Admin → Benutzer** – Benutzerverwaltung für alle Admins: Teilnehmenden
-  Admin-Rechte geben oder entziehen und für andere ein neues Passwort setzen.
-  Die eigenen Admin-Rechte lassen sich nicht entziehen (Aussperr-Schutz), und
-  mindestens eine Person bleibt immer Admin.
+  Admin-Rechte geben oder entziehen, für andere ein neues Passwort setzen und
+  Personen löschen. Die eigenen Admin-Rechte lassen sich nicht entziehen
+  (Aussperr-Schutz), mindestens eine Person bleibt immer Admin, und das eigene
+  Konto lässt sich nicht löschen. Gelöscht werden kann nur, wer noch **keine
+  Käufe** erfasst hat – sonst verschwänden diese Käufe mit und der
+  Einkaufsstand sänke, obwohl die Ware vorhanden ist (gedacht für
+  Tippfehler-Konten und Doppelregistrierungen).
 
 ## Tech-Stack
 
@@ -309,8 +313,9 @@ schon genug da ist und was noch fehlt.
 >   for insert to authenticated with check (public.is_admin());
 > ```
 >
-> **Benutzerverwaltung (Admin-Rechte & Passwörter in der App):** Ergänzt die
-> beiden Funktionen `set_admin` und `set_password`. Inhalt von
+> **Benutzerverwaltung (Admin-Rechte, Passwörter & Löschen in der App):**
+> Ergänzt die View `user_purchase_totals` und die Funktionen `set_admin`,
+> `set_password` und `delete_user`. Inhalt von
 > **`migration-benutzerverwaltung.sql`** im **SQL Editor** einfügen und
 > ausführen (Rolle `postgres` – sonst fehlt `set_password` das Schreibrecht auf
 > `auth.users`). Ändert keine Daten, gefahrlos mehrfach ausführbar. Bei einem

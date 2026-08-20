@@ -37,6 +37,8 @@ const state = {
   purchases: [],      // eigene Käufe der aktiven Sammlung (mit Artikelname)
   allPurchases: [],   // alle Käufe der aktiven Sammlung (nur Admin; mit Artikel- und Käufer:in-Name)
   people: [],         // alle Teilnehmenden (nur Admin; für die Benutzerverwaltung)
+  peopleTotals: [],   // aus View user_purchase_totals: Käufe je Person über ALLE Sammlungen
+                      // (nur Admin; für die Löschregel – wer gekauft hat, bleibt)
   view: 'overview',
   pkgParcel: null,    // id des in der Päckli-Ansicht gewählten Päckli-Typs
   adminParcel: null,  // id des im Admin gewählten Päckli-Typs (unabhängig)
@@ -291,14 +293,21 @@ async function loadData() {
     state.allPurchases = (all.data || []).sort((a, b) =>
       fullName(a.profiles).localeCompare(fullName(b.profiles), 'de-CH'));
 
-    // ... und alle Teilnehmenden für die Benutzerverwaltung.
+    // ... alle Teilnehmenden für die Benutzerverwaltung ...
     const people = await db.from('profiles').select('*');
     if (people.error) console.error('loadData: people ->', people.error);
     state.people = (people.data || []).sort((a, b) =>
       fullName(a).localeCompare(fullName(b), 'de-CH'));
+
+    // ... und deren Käufe über alle Sammlungen hinweg (Löschregel: wer je
+    // etwas erfasst hat, kann nicht gelöscht werden).
+    const totals = await db.from('user_purchase_totals').select('*');
+    if (totals.error) console.error('loadData: peopleTotals ->', totals.error);
+    state.peopleTotals = totals.data || [];
   } else {
     state.allPurchases = [];
     state.people = [];
+    state.peopleTotals = [];
   }
 
   // Admin > Sammlungen: betrachtete Sammlung gültig halten (Default: die aktive).
@@ -1110,12 +1119,24 @@ function renderUsers() {
     // Die eigenen Rechte kann man nicht entziehen (sonst sperrt man sich aus);
     // die DB-Funktion erzwingt das zusätzlich.
     const action = self
-      ? '<p class="muted" style="margin:10px 0 0">Das bist du – die eigenen Rechte lassen sich nicht ändern.</p>'
+      ? '<p class="muted" style="margin:10px 0 0">Das bist du – die eigenen Rechte lassen sich nicht ändern und das eigene Konto nicht löschen.</p>'
       : `<div class="row-actions">
            <button class="${p.is_admin ? 'ghost' : 'secondary'}" data-admin-toggle="${p.id}" data-make="${p.is_admin ? '0' : '1'}">
              ${p.is_admin ? 'Admin-Rechte entziehen' : 'Zu Admin machen'}
            </button>
          </div>`;
+    // Löschen: gesperrt für das eigene Konto und für alle, die schon Käufe
+    // erfasst haben (die hingen per `on delete cascade` an der Person und
+    // würden stillschweigend mitverschwinden). Die DB erzwingt beides
+    // nochmals, siehe delete_user in schema.sql.
+    const purchases = state.peopleTotals.find((t) => t.id === p.id)?.purchases || 0;
+    const blocked = self || purchases > 0;
+    const deleteBtn = `
+      <div class="row-actions">
+        <button class="ghost" data-del-user="${p.id}" ${blocked ? 'disabled' : ''}>Person löschen</button>
+      </div>
+      ${purchases ? `<p class="muted" style="margin:6px 0 0">Hat ${purchases} ${purchases === 1 ? 'Kauf' : 'Käufe'} erfasst – kann deshalb nicht gelöscht werden.</p>` : ''}`;
+
     // Passwortfeld bewusst im Klartext (type="text"): der Admin muss das neue
     // Passwort am Telefon durchgeben können und sieht es sonst nicht.
     const password = `
@@ -1135,6 +1156,7 @@ function renderUsers() {
         ${contact ? `<p class="sub">${contact}</p>` : ''}
         ${action}
         ${password}
+        ${deleteBtn}
       </div>`;
   }).join('');
 
@@ -1142,6 +1164,8 @@ function renderUsers() {
     b.addEventListener('click', () => setAdmin(b.dataset.adminToggle, b.dataset.make === '1')));
   $$('#admin-users-list [data-pw-set]').forEach((b) =>
     b.addEventListener('click', () => setUserPassword(b.dataset.pwSet)));
+  $$('#admin-users-list [data-del-user]').forEach((b) =>
+    b.addEventListener('click', () => deleteUser(b.dataset.delUser)));
   $$('#admin-users-list .pw-row input').forEach((i) =>
     i.addEventListener('keydown', (e) => {
       if (e.key === 'Enter') setUserPassword(i.id.replace('pw-', ''));
@@ -1186,6 +1210,27 @@ async function setUserPassword(id) {
   // vorlesen können. Beim nächsten Laden der Seite ist es wieder leer.
   msg.className = 'muted ok';
   msg.textContent = `Passwort gesetzt ✓ – „${password}" der Person mitteilen.`;
+}
+
+// Person endgültig löschen (Konto + Profil). Nur ohne erfasste Käufe – siehe
+// delete_user in schema.sql, die DB prüft dieselben Regeln nochmals.
+async function deleteUser(id) {
+  const name = fullName(state.people.find((p) => p.id === id)) || 'Diese Person';
+  const purchases = state.peopleTotals.find((t) => t.id === id)?.purchases || 0;
+
+  if (id === state.profile.id) { alert('Das eigene Konto lässt sich hier nicht löschen.'); return; }
+  if (purchases > 0) {
+    alert(`„${name}" hat ${purchases} ${purchases === 1 ? 'Kauf' : 'Käufe'} erfasst und kann deshalb nicht ` +
+      'gelöscht werden.\n\nSonst würden diese Käufe mitverschwinden und der Einkaufsstand sänke, ' +
+      'obwohl die Ware vorhanden ist.');
+    return;
+  }
+
+  if (!confirm(`„${name}" endgültig löschen?\n\nDas Konto wird entfernt, die Person kann sich nicht mehr anmelden. Das lässt sich nicht rückgängig machen.`)) return;
+
+  const { error } = await db.rpc('delete_user', { target_id: id });
+  if (error) { alert('Fehler: ' + error.message); return; }
+  await reload();
 }
 
 // Artikel nur aus dem aktuell gewählten Päckli entfernen (Artikel bleibt bestehen).

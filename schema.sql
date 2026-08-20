@@ -19,6 +19,7 @@
 -- Artikel & -Käufe verloren; Teilnehmende (profiles) und Sammlungen bleiben.
 drop view  if exists public.article_status;
 drop view  if exists public.article_purchase_totals;
+drop view  if exists public.user_purchase_totals;
 drop table if exists public.parcel_content;
 drop table if exists public.purchases;
 drop table if exists public.parcels;
@@ -172,6 +173,17 @@ with (security_invoker = true) as
   select article_id as id, sum(quantity) as bought
   from public.purchases
   group by article_id;
+
+-- ---------- Käufe je Person über ALLE Sammlungen hinweg ----------
+-- Für die Löschregel bei Personen (siehe delete_user): Wer je einen Kauf
+-- erfasst hat, kann nicht gelöscht werden – sonst verschwänden die Käufe per
+-- `on delete cascade` mit und der Einkaufsstand sänke, obwohl die Ware
+-- physisch vorhanden ist.
+create or replace view public.user_purchase_totals
+with (security_invoker = true) as
+  select user_id as id, count(*) as purchases, sum(quantity) as bought
+  from public.purchases
+  group by user_id;
 
 -- ---------- Helfer-Funktion: ist der aktuelle Benutzer Admin? ----------
 -- security definer, damit die Policy nicht rekursiv die profiles-RLS auslöst.
@@ -370,6 +382,53 @@ $$;
 
 revoke all on function public.set_password(uuid, text) from public;
 grant execute on function public.set_password(uuid, text) to authenticated;
+
+-- ---------- Benutzerverwaltung: Person löschen ----------
+-- Löscht die Zeile in `auth.users`; `profiles` (und damit Sitzungen und
+-- Anmelde-Identitäten) hängen per `on delete cascade` daran und verschwinden
+-- mit. Gedacht für Tippfehler-Konten, Doppelregistrierungen und Personen, die
+-- doch nicht mitmachen.
+--
+-- Gesperrt, sobald die Person Käufe erfasst hat (über alle Sammlungen
+-- hinweg): `purchases.user_id` hängt per `on delete cascade` an `profiles`,
+-- die Käufe würden also stillschweigend mitgelöscht und der Einkaufsstand
+-- sänke, obwohl die Ware physisch bei jemandem lagert. Gleiche Logik wie bei
+-- Artikeln, die schon gekauft wurden. Wer so jemanden wirklich entfernen
+-- will, löscht zuerst deren Käufe.
+create or replace function public.delete_user(target_id uuid)
+  returns void
+  language plpgsql
+  security definer
+  set search_path = public
+as $$
+declare
+  purchase_count int;
+begin
+  if not public.is_admin() then
+    raise exception 'Nur Admins dürfen Personen löschen.' using errcode = '42501';
+  end if;
+
+  -- Sich selbst zu löschen würde die eigene Sitzung ins Leere laufen lassen.
+  if target_id = auth.uid() then
+    raise exception 'Das eigene Konto lässt sich hier nicht löschen.' using errcode = '42501';
+  end if;
+
+  if not exists (select 1 from public.profiles where id = target_id) then
+    raise exception 'Person nicht gefunden.' using errcode = 'P0002';
+  end if;
+
+  select count(*) into purchase_count from public.purchases where user_id = target_id;
+  if purchase_count > 0 then
+    raise exception 'Person hat % Käufe erfasst und kann nicht gelöscht werden.', purchase_count
+      using errcode = '42501';
+  end if;
+
+  delete from auth.users where id = target_id;
+end;
+$$;
+
+revoke all on function public.delete_user(uuid) from public;
+grant execute on function public.delete_user(uuid) to authenticated;
 
 -- ============================================================
 --  Beispieldaten aus der Liste 2025 (optional – kann gelöscht werden)
