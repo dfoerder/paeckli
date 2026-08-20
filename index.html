@@ -145,6 +145,7 @@
         <button class="pkg-btn" data-admin-page="purchases">Alle Käufe</button>
         <button class="pkg-btn" data-admin-page="articles">Artikel</button>
         <button class="pkg-btn" data-admin-page="content">Päckli-Inhalt</button>
+        <button class="pkg-btn" data-admin-page="users">Benutzer</button>
       </div>
 
       <div id="admin-page-goals" class="admin-page">
@@ -243,9 +244,20 @@
         <input type="text" id="admin-content-search" class="search-input" placeholder="🔍 Artikel suchen…">
         <div id="admin-content"></div>
       </div>
+
+      <div id="admin-page-users" class="admin-page">
+        <h2 class="view-title">Benutzer</h2>
+        <p class="muted" style="margin:0 0 12px">
+          Admin-Rechte umfassen Sammlungen, Artikel, Päckli-Inhalt und diese
+          Seite. Wer ein Passwort vergessen hat, meldet sich bei einem Admin:
+          hier ein neues setzen und der Person mitteilen – es wird nie eine
+          Mail verschickt.
+        </p>
+        <div id="admin-users-list"></div>
+      </div>
     </main>
 
-    <footer id="app-footer">v2.9b · 20. August 2026</footer>
+    <footer id="app-footer">v2.10b · 20. August 2026</footer>
   </div>
 
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>

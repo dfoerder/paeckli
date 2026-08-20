@@ -340,6 +340,17 @@ code { background: var(--track); padding: 1px 5px; border-radius: 5px; }
 }
 .pkg-btn.active { background: var(--accent); color: #fff; border-color: var(--accent); }
 
+/* Admin-Navigation: seit der Benutzer-Seite sind es fünf Knöpfe – die passen
+   auf dem Handy nicht mehr nebeneinander, also umbrechen (3 + 2). */
+#admin-nav { flex-wrap: wrap; }
+#admin-nav .pkg-btn { flex: 1 1 28%; }
+
+/* Admin > Benutzer: Passwortfeld und „Setzen" nebeneinander in einer Zeile. */
+.pw-row { display: flex; gap: 8px; align-items: center; }
+.pw-row input { flex: 1; min-width: 0; }
+.pw-row button { flex-shrink: 0; }
+#admin-users-list .item p.muted { margin: 6px 0 0; font-size: 0.8rem; }
+
 .deadline {
   text-align: center;
   font-weight: 700;

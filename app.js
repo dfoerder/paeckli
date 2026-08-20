@@ -36,10 +36,11 @@ const state = {
                       // (für Löschregeln – die DB-Sperre kennt keine Sammlungsgrenzen)
   purchases: [],      // eigene Käufe der aktiven Sammlung (mit Artikelname)
   allPurchases: [],   // alle Käufe der aktiven Sammlung (nur Admin; mit Artikel- und Käufer:in-Name)
+  people: [],         // alle Teilnehmenden (nur Admin; für die Benutzerverwaltung)
   view: 'overview',
   pkgParcel: null,    // id des in der Päckli-Ansicht gewählten Päckli-Typs
   adminParcel: null,  // id des im Admin gewählten Päckli-Typs (unabhängig)
-  adminPage: 'goals', // aktive Unterseite im Admin-Tab: goals | purchases | articles | content
+  adminPage: 'goals', // aktive Unterseite im Admin-Tab: goals | purchases | articles | content | users
   articleEditId: null, // Artikel-Seite: id des Artikels in der Änderungsansicht (null = Liste)
   goalsEditing: false  // Sammlungen-Seite: false = Anzeige der aktiven Sammlung, true = Bearbeitungsmodus
 };
@@ -289,8 +290,15 @@ async function loadData() {
     if (all.error) console.error('loadData: allPurchases ->', all.error);
     state.allPurchases = (all.data || []).sort((a, b) =>
       fullName(a.profiles).localeCompare(fullName(b.profiles), 'de-CH'));
+
+    // ... und alle Teilnehmenden für die Benutzerverwaltung.
+    const people = await db.from('profiles').select('*');
+    if (people.error) console.error('loadData: people ->', people.error);
+    state.people = (people.data || []).sort((a, b) =>
+      fullName(a).localeCompare(fullName(b), 'de-CH'));
   } else {
     state.allPurchases = [];
+    state.people = [];
   }
 
   // Admin > Sammlungen: betrachtete Sammlung gültig halten (Default: die aktive).
@@ -682,6 +690,7 @@ function renderAdmin() {
   renderAllPurchases();
   renderAdminArticles();
   renderAdminContent();
+  renderUsers();
 
   // Sub-Navigation: nur die gewählte Admin-Unterseite anzeigen.
   $$('#admin-nav .pkg-btn').forEach((b) =>
@@ -1075,6 +1084,108 @@ async function saveArticle(id, containerId) {
   const btn = row.querySelector('[data-save]');
   const old = btn.textContent; btn.textContent = 'Gespeichert ✓';
   setTimeout(() => { btn.textContent = old; }, 1200);
+}
+
+// ============================================================
+//  Admin-Unterseite: Benutzer (Admin-Rechte und Passwörter)
+// ============================================================
+// Jede:r Admin kann hier Admin-Rechte vergeben/entziehen und für andere ein
+// neues Passwort setzen. Beides läuft über security-definer-Funktionen in der
+// Datenbank (`set_admin`, `set_password`, siehe schema.sql), die selbst
+// prüfen, ob die aufrufende Person Admin ist. So bleibt der service_role-Key
+// aussen vor – der gehört nie ins öffentliche Frontend.
+function renderUsers() {
+  const box = el('admin-users-list');
+  if (!box) return;
+
+  if (!state.people.length) {
+    box.innerHTML = '<p class="empty">Noch keine Teilnehmenden.</p>';
+    return;
+  }
+
+  box.innerHTML = state.people.map((p) => {
+    const self = p.id === state.profile.id;
+    const name = esc(fullName(p) || 'Ohne Namen');
+    const contact = [p.contact_email, p.contact_phone].filter(Boolean).map(esc).join(' · ');
+    // Die eigenen Rechte kann man nicht entziehen (sonst sperrt man sich aus);
+    // die DB-Funktion erzwingt das zusätzlich.
+    const action = self
+      ? '<p class="muted" style="margin:10px 0 0">Das bist du – die eigenen Rechte lassen sich nicht ändern.</p>'
+      : `<div class="row-actions">
+           <button class="${p.is_admin ? 'ghost' : 'secondary'}" data-admin-toggle="${p.id}" data-make="${p.is_admin ? '0' : '1'}">
+             ${p.is_admin ? 'Admin-Rechte entziehen' : 'Zu Admin machen'}
+           </button>
+         </div>`;
+    // Passwortfeld bewusst im Klartext (type="text"): der Admin muss das neue
+    // Passwort am Telefon durchgeben können und sieht es sonst nicht.
+    const password = `
+      <label for="pw-${p.id}">Neues Passwort setzen</label>
+      <div class="pw-row">
+        <input type="text" id="pw-${p.id}" placeholder="mind. 6 Zeichen"
+               autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false">
+        <button class="ghost btn-sm" data-pw-set="${p.id}">Setzen</button>
+      </div>
+      <p class="muted" id="pw-msg-${p.id}"></p>`;
+    return `
+      <div class="item">
+        <div class="head">
+          <span class="name">${name}</span>
+          ${p.is_admin ? '<span class="pill ok">Admin</span>' : ''}
+        </div>
+        ${contact ? `<p class="sub">${contact}</p>` : ''}
+        ${action}
+        ${password}
+      </div>`;
+  }).join('');
+
+  $$('#admin-users-list [data-admin-toggle]').forEach((b) =>
+    b.addEventListener('click', () => setAdmin(b.dataset.adminToggle, b.dataset.make === '1')));
+  $$('#admin-users-list [data-pw-set]').forEach((b) =>
+    b.addEventListener('click', () => setUserPassword(b.dataset.pwSet)));
+  $$('#admin-users-list .pw-row input').forEach((i) =>
+    i.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') setUserPassword(i.id.replace('pw-', ''));
+    }));
+}
+
+async function setAdmin(id, makeAdmin) {
+  const name = fullName(state.people.find((p) => p.id === id)) || 'Diese Person';
+  const question = makeAdmin
+    ? `„${name}" Admin-Rechte geben?\n\nDamit kann die Person Sammlungen, Artikel und Päckli-Inhalt ändern und selbst Rechte vergeben.`
+    : `„${name}" die Admin-Rechte entziehen?`;
+  if (!confirm(question)) return;
+
+  const { error } = await db.rpc('set_admin', { target_id: id, make_admin: makeAdmin });
+  if (error) { alert('Fehler: ' + error.message); return; }
+  await reload();
+}
+
+// Passwort einer anderen Person neu setzen (z.B. nach einem Anruf „vergessen").
+// Kein Mailversand: die Person erfährt das neue Passwort direkt vom Admin.
+async function setUserPassword(id) {
+  const person = state.people.find((p) => p.id === id);
+  const name = fullName(person) || 'Diese Person';
+  const input = el('pw-' + id);
+  const msg = el('pw-msg-' + id);
+  const btn = $(`#admin-users-list [data-pw-set="${id}"]`);
+  const password = input.value.trim();
+
+  if (password.length < 6) {
+    msg.className = 'muted err';
+    msg.textContent = 'Passwort muss mind. 6 Zeichen haben.';
+    return;
+  }
+  if (!confirm(`Passwort von „${name}" neu setzen?\n\nDas bisherige Passwort gilt danach nicht mehr – das neue der Person mitteilen.`)) return;
+
+  if (btn) btn.disabled = true;
+  const { error } = await db.rpc('set_password', { target_id: id, new_password: password });
+  if (btn) btn.disabled = false;
+
+  if (error) { msg.className = 'muted err'; msg.textContent = 'Fehler: ' + error.message; return; }
+  // Das Feld bleibt absichtlich gefüllt: der Admin muss das Passwort noch
+  // vorlesen können. Beim nächsten Laden der Seite ist es wieder leer.
+  msg.className = 'muted ok';
+  msg.textContent = `Passwort gesetzt ✓ – „${password}" der Person mitteilen.`;
 }
 
 // Artikel nur aus dem aktuell gewählten Päckli entfernen (Artikel bleibt bestehen).

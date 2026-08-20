@@ -7,7 +7,8 @@ schon genug da ist und was noch fehlt.
 ## Funktionen
 
 - **Login per E-Mail + Passwort** – kein Mailversand, kein Rate-Limit. Passwort
-  vergessen? Admin setzt es über die Supabase Admin-API neu (siehe unten).
+  vergessen? Jede:r Admin setzt in der App unter **Admin → Benutzer** ein neues
+  und gibt es der Person durch (siehe unten).
 - **Übersicht** – Einkaufsstand aller Artikel mit Fortschrittsbalken (genug / fehlt noch).
 - **Deine Käufe** – Kauf eintragen (Artikel, Anzahl, optional Shop, Spender:in,
   Notiz) und darunter eigene Einträge ansehen und löschen, alles in einem Tab.
@@ -21,6 +22,10 @@ schon genug da ist und was noch fehlt.
   pro Jahr) – die neueste ist automatisch aktiv, ältere bleiben einsehbar. Beim
   Anlegen einer neuen Sammlung kann die Päckli-Zusammensetzung der letzten
   übernommen werden.
+- **Admin → Benutzer** – Benutzerverwaltung für alle Admins: Teilnehmenden
+  Admin-Rechte geben oder entziehen und für andere ein neues Passwort setzen.
+  Die eigenen Admin-Rechte lassen sich nicht entziehen (Aussperr-Schutz), und
+  mindestens eine Person bleibt immer Admin.
 
 ## Tech-Stack
 
@@ -303,6 +308,13 @@ schon genug da ist und was noch fehlt.
 > create policy campaigns_insert on public.campaigns
 >   for insert to authenticated with check (public.is_admin());
 > ```
+>
+> **Benutzerverwaltung (Admin-Rechte & Passwörter in der App):** Ergänzt die
+> beiden Funktionen `set_admin` und `set_password`. Inhalt von
+> **`migration-benutzerverwaltung.sql`** im **SQL Editor** einfügen und
+> ausführen (Rolle `postgres` – sonst fehlt `set_password` das Schreibrecht auf
+> `auth.users`). Ändert keine Daten, gefahrlos mehrfach ausführbar. Bei einem
+> frischen Aufbau ist derselbe Abschnitt bereits in `schema.sql` enthalten.
 
 ### 3. E-Mail-Bestätigung deaktivieren
 
@@ -315,22 +327,20 @@ werden:
    dem Registrieren eine Bestätigungsmail und Login schlägt fehl.
 
 **Passwort zurücksetzen (kein Selfservice):** Ruft jemand an, weil das
-Passwort vergessen wurde, setzt der Admin es direkt über die Supabase
-Admin-API neu – ganz ohne Mail oder SMS:
+Passwort vergessen wurde, macht das jede:r Admin direkt in der App:
+**Admin → Benutzer** → bei der Person ein neues Passwort eintippen →
+**Setzen** → der Person durchgeben. Ganz ohne Mail oder SMS.
 
-```bash
-curl -X PUT 'https://DEIN-PROJEKT.supabase.co/auth/v1/admin/users/<user-id>' \
-  -H "apikey: <service_role_key>" \
-  -H "Authorization: Bearer <service_role_key>" \
-  -H "Content-Type: application/json" \
-  -d '{"password":"NeuesPasswort123"}'
-```
-
-- `<user-id>` findet sich im Supabase-Dashboard unter **Authentication → Users**.
-- Den `service_role_key` gibt es unter **Project Settings → API** – er hat
-  vollen Zugriff auf die Datenbank (umgeht Row Level Security) und darf
-  **niemals** in `config.js`, im Repo oder sonst im Code landen. Nur lokal
-  beim Admin aufbewahren.
+- Technisch dahinter: die Datenbank-Funktion `public.set_password` aus
+  `schema.sql` (`security definer`). Sie prüft selbst, ob die aufrufende
+  Person Admin ist, und schreibt den bcrypt-Hash direkt nach `auth.users` –
+  genau wie Supabase Auth es selbst tut.
+- Bestehende Anmeldungen der Person bleiben gültig; das neue Passwort braucht
+  sie erst beim nächsten Login.
+- Der `service_role_key` (**Project Settings → API**) wird dafür **nicht** mehr
+  gebraucht. Er hat vollen Zugriff auf die Datenbank (umgeht Row Level
+  Security) und darf **niemals** in `config.js`, im Repo oder sonst im Code
+  landen.
 
 ### 4. Zugangsdaten in die App eintragen
 
@@ -347,6 +357,10 @@ curl -X PUT 'https://DEIN-PROJEKT.supabase.co/auth/v1/admin/users/<user-id>' \
    `is_admin` auf `true` setzen. (Oder im SQL Editor:
    `update profiles set is_admin = true where name = 'Dein Name';`)
 3. App neu laden – der Reiter **Admin** erscheint.
+
+Alle weiteren Admins werden danach in der App ernannt: **Admin → Benutzer** →
+bei der Person **Zu Admin machen**. Dafür braucht es das Supabase-Dashboard
+nicht mehr.
 
 ---
 

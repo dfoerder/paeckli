@@ -16,8 +16,10 @@ Backend**, weil mehrere Personen geteilte Daten brauchen.
 - **Supabase** (Postgres + Auth + Row Level Security) als Backend, Client per CDN.
 - **E-Mail+Passwort-Login** via `db.auth.signInWithPassword` / `signUp`. „Confirm
   email" ist in Supabase deaktiviert → es wird nie eine Mail verschickt. Passwort-
-  Resets laufen ausserhalb der App: Person ruft den Admin an, der das Passwort
-  über die Supabase Admin-API (`service_role`-Key) direkt setzt.
+  Resets macht **jede:r Admin direkt in der App** (Admin > Benutzer): Person
+  ruft an, Admin setzt ein neues Passwort und gibt es durch. Technisch läuft das
+  über die RPC `set_password` (siehe Rollen & Sicherheit) – ohne
+  `service_role`-Key, der nie ins öffentliche Frontend gehört.
 - **PWA**: `sw.js` (network-first, cacht nur GET), `manifest.json`.
 
 ## Dateien
@@ -30,6 +32,8 @@ paeckli/
 ├── config.js         # Supabase URL + anon key (gitignored, aus config.example.js)
 ├── config.example.js # Vorlage
 ├── schema.sql        # Supabase-Setup: Tabellen, View, RLS, Beispieldaten
+├── migration-benutzerverwaltung.sql  # Nachrüst-Skript für bestehende DBs:
+│                     # set_admin + set_password (Kopie des Abschnitts aus schema.sql)
 ├── sw.js             # Service Worker (Cache-Version manuell hochzählen)
 ├── manifest.json
 ├── icon-192/512.png  # Geschenk-Icon
@@ -60,7 +64,20 @@ paeckli/
 - Artikel, Päckli, Zusammensetzung & Sammlungen: nur **Admin** (`is_admin = true`) schreiben
   (inkl. neue Sammlung anlegen, `campaigns_insert`-Policy).
 - Admin-Check via `public.is_admin()` (security definer, verhindert RLS-Rekursion).
-- Erste:r Admin wird manuell gesetzt (`update profiles set is_admin=true …`).
+- Erste:r Admin wird manuell gesetzt (`update profiles set is_admin=true …`),
+  alle weiteren dann in der App über Admin > Benutzer.
+- **Benutzerverwaltung** (Admin > Benutzer) über zwei security-definer-RPCs in
+  `schema.sql`, beide prüfen selbst `public.is_admin()`:
+  - `set_admin(target_id, make_admin)` – Admin-Rechte vergeben/entziehen.
+    Umgeht kontrolliert das Spaltenrecht auf `profiles.is_admin` (sonst könnte
+    sich jede:r selbst zum Admin machen). Die **eigenen** Rechte lassen sich
+    nicht entziehen (Aussperr-Schutz, in der DB und im UI), und mindestens
+    eine Person behält immer Admin-Rechte.
+  - `set_password(target_id, new_password)` – schreibt den bcrypt-Hash direkt
+    in `auth.users` (pgcrypto, `gen_salt('bf', 10)`, genau wie GoTrue). Kein
+    Mailversand, bestehende Sitzungen der Person bleiben gültig. Die Funktion
+    muss als Rolle `postgres` (Supabase-SQL-Editor) angelegt werden, sonst
+    fehlt dem Besitzer das Schreibrecht auf `auth.users`.
 - **Löschregeln** (FK `on delete restrict` auf `article_id`, sowohl bei
   `parcel_content` als auch bei `purchases`): Artikel sind nur löschbar, wenn
   sie in keinem Päckli mehr enthalten sind **und** über alle Sammlungen hinweg
@@ -79,7 +96,8 @@ Anzeige, = Login-E-Mail – erreichbar über Klick auf den Namen in der
 Kopfzeile, kein eigener Tab), `packages`
 (Päckli-Zusammensetzung je `parcel` aus `parcel_content`, Toggle dynamisch je
 Päckli-Typ), `admin` (nur für Admin; interne Unterseiten via
-`state.adminPage` + 4 Buttons oben, jeweils nur eine sichtbar: **Sammlungen**
+`state.adminPage` + 5 Buttons oben (umbrechen auf dem Handy, `#admin-nav`),
+jeweils nur eine sichtbar: **Sammlungen**
 (intern weiterhin `adminPage: 'goals'`/`#admin-page-goals`; zwei Modi via
 `state.goalsEditing`: Anzeige (Standard) zeigt nur die AKTIVE Sammlung
 read-only (Titel, Stichtag, Päckli-Ziele) mit „Bearbeiten"-Knopf; Bearbeitungs-
@@ -115,7 +133,12 @@ Päckli-Umschalter, aber vor Suchfeld und Artikelliste, weil Menge und
 Hinweistext sich aufs gewählte Päckli beziehen; der Titel „Päckli-Inhalt"
 (`.view-title`) sitzt deshalb **nicht** zuoberst, sondern unter dem Formular,
 direkt über Suchfeld und Liste, für die er gilt; Reuse-by-Name, siehe
-„Artikel zu Päckli hinzufügen" unten)). Übersicht
+„Artikel zu Päckli hinzufügen" unten), **Benutzer**
+(`adminPage: 'users'`, alle `profiles` aus `state.people`: Admin-Rechte
+vergeben/entziehen und ein neues Passwort setzen – Feld bewusst `type="text"`,
+damit der Admin es der Person durchgeben kann, und nach dem Setzen absichtlich
+nicht geleert; ruft `set_admin`/`set_password` auf, siehe Rollen &
+Sicherheit)). Übersicht
 (`overview`) gruppiert die Artikel nach `category` (feste Reihenfolge:
 Esswaren, Hygiene, Kleidung, Schreibwaren, Spielzeug, Sonstiges).
 
@@ -153,6 +176,8 @@ const state = {
   content, status,     // status = article_status, gefiltert auf aktive Sammlung
   purchaseTotals,      // article_purchase_totals: Käufe je Artikel, alle Sammlungen (Löschregeln)
   purchases,           // eigene Käufe der AKTIVEN Sammlung
+  allPurchases,        // alle Käufe der AKTIVEN Sammlung (nur Admin)
+  people,              // alle Teilnehmenden (nur Admin; Admin > Benutzer)
   view: 'overview',    // aktive Ansicht
   pkgParcel: null      // id des in der Päckli-Ansicht gewählten Päckli-Typs
 };
@@ -218,7 +243,8 @@ da die Preview die `launch.json` des primären Projekts liest. Alternativ:
 - Da nie E-Mails verschickt werden, wird auch keine Adresse verifiziert – jede:r
   kann sich mit einer beliebigen E-Mail registrieren. Für den bekannten,
   überschaubaren Helferkreis bewusst in Kauf genommen.
-- `service_role`-Key (für Passwort-Resets) liegt nur lokal beim Admin, niemals
-  im Repo oder in `config.js`.
+- `service_role`-Key wird für den Betrieb nicht mehr gebraucht (Passwort-Resets
+  laufen über `set_password`); falls doch mal nötig, liegt er nur lokal beim
+  Admin – niemals im Repo oder in `config.js`.
 - Echtzeit-Updates (Supabase Realtime) noch nicht aktiviert – aktuell lädt die
   App die Daten bei jedem Ansichtswechsel/Aktion neu.
