@@ -315,12 +315,12 @@ code { background: var(--track); padding: 1px 5px; border-radius: 5px; }
 .row-actions { display: flex; gap: 8px; margin-top: 10px; }
 .row-actions button { margin-top: 0; padding: 8px; font-size: 0.85rem; }
 
-/* Admin > Päckli-Inhalt: Trennlinie zwischen den Einträgen. Ohne sie wirken
+/* Admin > Päckli-Inhalt: Trennlinie vor jedem Eintrag. Ohne sie wirken
    „Speichern"/„Aus Päckli entfernen" wie Knöpfe für den Eintrag darunter,
-   weil der helle Kartenrahmen auf dem Handy kaum auffällt. */
-#admin-content .item { margin-bottom: 0; }
-#admin-content .item + .item { margin-top: 26px; position: relative; }
-#admin-content .item + .item::before {
+   weil der helle Kartenrahmen auf dem Handy kaum auffällt. Vor dem ersten
+   Eintrag trennt dieselbe Linie das Suchfeld von der Liste. */
+#admin-content .item { margin: 26px 0 0; position: relative; }
+#admin-content .item::before {
   content: '';
   position: absolute;
   top: -13px;
