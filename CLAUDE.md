@@ -106,12 +106,15 @@ Seite (über Suchfeld und Liste), legt Artikel ohne Päckli-Zuordnung an),
 **Päckli-Inhalt**
 (dieselbe Päckli-Darstellung wie `packages`, aber editierbar: Menge/Name/
 Notiz/Kategorie ändern, „Aus Päckli entfernen" = nur `parcel_content`-Zeile;
-zwischen den Einträgen eine 2px-Trennlinie (`#admin-content .item + .item`),
+zwischen den Einträgen eine 2px-Trennlinie (`#admin-content .item + .item`,
+bewusst dunkler als `--border`, sonst praktisch unsichtbar),
 sonst wirken „Speichern"/„Aus Päckli entfernen" wie Knöpfe für den Eintrag
 darunter – der helle Kartenrahmen allein reicht auf dem Handy nicht;
 das Formular „Artikel zu Päckli hinzufügen" steht **zuoberst** – nach dem
 Päckli-Umschalter, aber vor Suchfeld und Artikelliste, weil Menge und
-Hinweistext sich aufs gewählte Päckli beziehen; Reuse-by-Name, siehe
+Hinweistext sich aufs gewählte Päckli beziehen; der Titel „Päckli-Inhalt"
+(`.view-title`) sitzt deshalb **nicht** zuoberst, sondern unter dem Formular,
+direkt über Suchfeld und Liste, für die er gilt; Reuse-by-Name, siehe
 „Artikel zu Päckli hinzufügen" unten)). Übersicht
 (`overview`) gruppiert die Artikel nach `category` (feste Reihenfolge:
 Esswaren, Hygiene, Kleidung, Schreibwaren, Spielzeug, Sonstiges).
