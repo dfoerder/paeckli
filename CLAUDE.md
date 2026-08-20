@@ -101,13 +101,37 @@ unabhängig von Päckli-Zuordnung; zwei Modi via `state.articleEditId`: Liste
 nach `category` gruppiert mit „Ändern"-Knopf je Artikel, oder Änderungsansicht
 für einen Artikel — Name/Kategorie/Notiz ändern, endgültig löschen, gesperrt
 solange in einem Päckli enthalten oder schon gekauft, siehe Löschregeln;
-„Neuer Artikel" nur im Listen-Modus sichtbar, legt Artikel ohne Päckli-
-Zuordnung an), **Päckli-Inhalt**
+„Neuer Artikel" nur im Listen-Modus sichtbar, steht **zuoberst** auf der
+Seite (über Suchfeld und Liste), legt Artikel ohne Päckli-Zuordnung an),
+**Päckli-Inhalt**
 (dieselbe Päckli-Darstellung wie `packages`, aber editierbar: Menge/Name/
 Notiz/Kategorie ändern, „Aus Päckli entfernen" = nur `parcel_content`-Zeile;
-unten Artikel zum gewählten Päckli hinzufügen, Reuse-by-Name)). Übersicht
+das Formular „Artikel zu Päckli hinzufügen" steht **zuoberst** – nach dem
+Päckli-Umschalter, aber vor Suchfeld und Artikelliste, weil Menge und
+Hinweistext sich aufs gewählte Päckli beziehen; Reuse-by-Name, siehe
+„Artikel zu Päckli hinzufügen" unten)). Übersicht
 (`overview`) gruppiert die Artikel nach `category` (feste Reihenfolge:
 Esswaren, Hygiene, Kleidung, Schreibwaren, Spielzeug, Sonstiges).
+
+### Artikel zu Päckli hinzufügen (Admin > Päckli-Inhalt)
+
+`addArticle()` verwendet einen bestehenden Artikel mit gleichem Namen wieder
+(case-insensitiv), statt ein Duplikat anzulegen. Zwei Hilfen dazu:
+
+- **Vorschlagsliste** (`renderNameSuggestions()`, `#new-suggest`): zeigt beim
+  Tippen im Namensfeld passende bestehende Artikel (Teilstring via `matches()`,
+  alphabetisch, max. `SUGGEST_LIMIT` = 8 plus „… n weitere"). Rechts steht die
+  Kategorie bzw. „im Päckli · n×", wenn der Artikel im gewählten Päckli schon
+  enthalten ist. `pickSuggestion()` übernimmt Name/Kategorie/Notiz (und bei
+  bereits enthaltenen Artikeln die aktuelle Menge, weil das `upsert` auf
+  `parcel_content` sie sonst unbemerkt überschreibt). Ein exakt gleich
+  geschriebener Name wird nicht mehr vorgeschlagen. Geschlossen wird die Liste
+  bei Auswahl, `Escape`, Klick ausserhalb (document-Listener statt `blur`,
+  sonst käme der Vorschlag-Klick nie an), Päckli-Wechsel und nach dem
+  Hinzufügen.
+- **Rückfrage vor Neuanlage**: Gibt es den Namen noch nicht, fragt ein
+  `confirm()`, ob der Artikel neu angelegt werden soll – sonst landen
+  Tippfehler unbemerkt als neuer globaler Artikel in der Liste.
 
 ## State-Objekt
 
