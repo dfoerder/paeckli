@@ -133,8 +133,9 @@ Seite (über Suchfeld und Liste), legt Artikel ohne Päckli-Zuordnung an),
 **Päckli-Inhalt**
 (dieselbe Päckli-Darstellung wie `packages`, aber editierbar: Menge/Name/
 Notiz/Kategorie ändern, „Aus Päckli entfernen" = nur `parcel_content`-Zeile;
-zwischen den Einträgen eine 2px-Trennlinie (`#admin-content .item + .item`,
-bewusst dunkler als `--border`, sonst praktisch unsichtbar),
+zwischen den Einträgen eine 2px-Trennlinie (`#admin-content .item::before`,
+bewusst dunkler als `--border`, sonst praktisch unsichtbar; dieselbe Regel
+gilt für `#admin-users-list .item` auf der Benutzer-Seite),
 sonst wirken „Speichern"/„Aus Päckli entfernen" wie Knöpfe für den Eintrag
 darunter – der helle Kartenrahmen allein reicht auf dem Handy nicht;
 das Formular „Artikel zu Päckli hinzufügen" steht **zuoberst** – nach dem
