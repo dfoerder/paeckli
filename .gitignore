@@ -7,3 +7,7 @@ supabase-keepalive.log
 
 # Lokale Editor-/Tooling-Konfiguration
 .claude/
+
+# Lokale Notizen und Arbeitsmaterial (nicht fürs Repo)
+paeckli.md
+übersicht/
