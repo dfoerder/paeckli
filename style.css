@@ -326,7 +326,9 @@ code { background: var(--track); padding: 1px 5px; border-radius: 5px; }
   top: -13px;
   left: 0;
   right: 0;
-  border-top: 2px solid var(--border);
+  /* Bewusst dunkler als --border: mit der Rahmenfarbe war die Linie auf dem
+     hellen Hintergrund praktisch unsichtbar. */
+  border-top: 2px solid #b9ab99;
 }
 
 /* ---------- Päckli-Toggle ---------- */
