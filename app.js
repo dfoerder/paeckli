@@ -859,6 +859,7 @@ function renderAdminArticles() {
 
   el('admin-articles-new').classList.toggle('hidden', !!editing);
   el('admin-articles-search').classList.toggle('hidden', !!editing);
+  el('admin-articles-print').classList.toggle('hidden', !!editing);
 
   if (editing) {
     renderArticleEditForm(editing);
@@ -1414,6 +1415,47 @@ async function addStandaloneArticle() {
 }
 
 // ============================================================
+//  Drucken / als PDF sichern
+// ============================================================
+// Je Liste: Titel + die Container, deren (bereits gerenderter) Inhalt in die
+// Druckansicht kopiert wird. Gedruckt wird also genau das, was gerade
+// angezeigt ist – inkl. Suchfilter und gewähltem Päckli-Typ.
+const PRINT_LISTS = {
+  overview: () => ({ title: 'Einkaufsstand', parts: ['campaign-summary', 'overview-list'], query: el('overview-search').value }),
+  mine: () => ({ title: 'Deine Käufe · ' + fullName(state.profile), parts: ['mine-list'] }),
+  packages: () => ({
+    title: 'Päckli-Inhalt · ' + (state.parcels.find((p) => p.id === state.pkgParcel)?.name || ''),
+    parts: ['packages-list']
+  }),
+  purchases: () => ({ title: 'Alle Käufe (nach Käufer:in)', parts: ['admin-all-list'], query: el('admin-purchases-search').value }),
+  articles: () => ({ title: 'Artikel', parts: ['admin-articles-list'], query: el('admin-articles-search').value })
+};
+
+// Füllt #print-sheet und öffnet den Druckdialog des Browsers (dort lässt sich
+// auch „Als PDF sichern" wählen). document.title wird kurz ersetzt, weil die
+// Browser ihn als Kopfzeile und als Vorschlag für den PDF-Dateinamen nehmen.
+function printList(key) {
+  const { title, parts, query } = PRINT_LISTS[key]();
+  const today = new Date().toLocaleDateString('de-CH', { day: 'numeric', month: 'long', year: 'numeric' });
+  const meta = [state.campaign?.title, 'Stand: ' + today];
+  if (query?.trim()) meta.push(`Suche: «${query.trim()}»`);
+
+  el('print-sheet').innerHTML = `
+    <h1>${esc(title)}</h1>
+    <p class="print-meta">${meta.map(esc).join(' · ')}</p>
+    ${parts.map((id) => `<div class="print-part ${el(id).className}">${el(id).innerHTML}</div>`).join('')}`;
+
+  const oldTitle = document.title;
+  document.title = [title, state.campaign?.title].filter(Boolean).join(' – ');
+  document.body.classList.add('printing');
+  window.addEventListener('afterprint', () => {
+    document.body.classList.remove('printing');
+    document.title = oldTitle;
+  }, { once: true });
+  window.print();
+}
+
+// ============================================================
 //  Event-Verdrahtung
 // ============================================================
 function wireEvents() {
@@ -1451,6 +1493,8 @@ function wireEvents() {
   el('admin-purchases-search')?.addEventListener('input', renderAllPurchases);
   $$('#admin-nav .pkg-btn').forEach((b) =>
     b.addEventListener('click', () => setAdminPage(b.dataset.adminPage)));
+  $$('[data-print]').forEach((b) =>
+    b.addEventListener('click', () => printList(b.dataset.print)));
 
   $$('#tabs .tab').forEach((t) =>
     t.addEventListener('click', () => showView(t.dataset.view)));

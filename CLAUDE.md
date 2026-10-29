@@ -154,6 +154,18 @@ Rollen & Sicherheit)). Übersicht
 (`overview`) gruppiert die Artikel nach `category` (feste Reihenfolge:
 Esswaren, Hygiene, Kleidung, Schreibwaren, Spielzeug, Sonstiges).
 
+### Drucken / als PDF sichern
+
+Knopf „🖨 Drucken / PDF" (`[data-print]`) über den Listen Übersicht, Deine
+Käufe, Päckli, Admin > Alle Käufe und Admin > Artikel (dort nur im
+Listen-Modus). `printList(key)` kopiert den schon gerenderten Inhalt der in
+`PRINT_LISTS` genannten Container – also inkl. Suchfilter und gewähltem
+Päckli-Typ – samt Titel/Sammlung/Datum nach `#print-sheet` (ausserhalb von
+`#app`), setzt `body.printing` und ruft `window.print()`; PDF über „Als PDF
+sichern" im Druckdialog. `document.title` wird dabei kurz ersetzt (Vorschlag
+für den PDF-Dateinamen). Die Druck-CSS (`@media print`) greift nur mit
+`body.printing`, Drucken übers Browser-Menü druckt die normale Seite.
+
 ### Artikel zu Päckli hinzufügen (Admin > Päckli-Inhalt)
 
 `addArticle()` verwendet einen bestehenden Artikel mit gleichem Namen wieder

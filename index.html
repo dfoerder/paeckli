@@ -69,6 +69,7 @@
     <main id="view-overview" class="view hidden">
       <div id="campaign-summary" class="card summary"></div>
       <input type="text" id="overview-search" class="search-input" placeholder="🔍 Artikel suchen…">
+      <button class="ghost btn-sm print-btn" data-print="overview">🖨 Drucken / PDF</button>
       <div id="overview-list"></div>
     </main>
 
@@ -102,6 +103,7 @@
       </div>
 
       <h2 class="view-title">Deine Käufe</h2>
+      <button class="ghost btn-sm print-btn" data-print="mine">🖨 Drucken / PDF</button>
       <div id="mine-list"></div>
     </main>
 
@@ -135,6 +137,7 @@
     <!-- Päckli-Zusammensetzung -->
     <main id="view-packages" class="view hidden">
       <div id="pkg-toggle" class="pkg-toggle"></div>
+      <button class="ghost btn-sm print-btn" data-print="packages">🖨 Drucken / PDF</button>
       <div id="packages-list"></div>
     </main>
 
@@ -186,6 +189,7 @@
       <div id="admin-page-purchases" class="admin-page">
         <h2 class="view-title">Alle Käufe (nach Käufer:in)</h2>
         <input type="text" id="admin-purchases-search" class="search-input" placeholder="🔍 Käufer:in, Spender:in oder Artikel suchen…">
+        <button class="ghost btn-sm print-btn" data-print="purchases">🖨 Drucken / PDF</button>
         <div id="admin-all-list"></div>
       </div>
 
@@ -211,6 +215,7 @@
         </div>
 
         <input type="text" id="admin-articles-search" class="search-input" placeholder="🔍 Artikel suchen…">
+        <button class="ghost btn-sm print-btn" id="admin-articles-print" data-print="articles">🖨 Drucken / PDF</button>
         <div id="admin-articles-list"></div>
       </div>
 
@@ -258,8 +263,11 @@
       </div>
     </main>
 
-    <footer id="app-footer">v2.12b · 21. August 2026</footer>
+    <footer id="app-footer">v2.13b · 29. Oktober 2026</footer>
   </div>
+
+  <!-- Druckansicht: wird von printList() befüllt, nur beim Drucken sichtbar -->
+  <div id="print-sheet"></div>
 
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script src="config.js"></script>
