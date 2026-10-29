@@ -69,7 +69,10 @@
     <main id="view-overview" class="view hidden">
       <div id="campaign-summary" class="card summary"></div>
       <input type="text" id="overview-search" class="search-input" placeholder="🔍 Artikel suchen…">
-      <button class="ghost btn-sm print-btn" data-print="overview">🖨 Drucken / PDF</button>
+      <div class="list-actions">
+        <button class="ghost btn-sm" data-print="overview">🖨 Drucken / PDF</button>
+        <button class="ghost btn-sm" data-excel="overview">📊 Excel</button>
+      </div>
       <div id="overview-list"></div>
     </main>
 
@@ -103,7 +106,10 @@
       </div>
 
       <h2 class="view-title">Deine Käufe</h2>
-      <button class="ghost btn-sm print-btn" data-print="mine">🖨 Drucken / PDF</button>
+      <div class="list-actions">
+        <button class="ghost btn-sm" data-print="mine">🖨 Drucken / PDF</button>
+        <button class="ghost btn-sm" data-excel="mine">📊 Excel</button>
+      </div>
       <div id="mine-list"></div>
     </main>
 
@@ -137,7 +143,10 @@
     <!-- Päckli-Zusammensetzung -->
     <main id="view-packages" class="view hidden">
       <div id="pkg-toggle" class="pkg-toggle"></div>
-      <button class="ghost btn-sm print-btn" data-print="packages">🖨 Drucken / PDF</button>
+      <div class="list-actions">
+        <button class="ghost btn-sm" data-print="packages">🖨 Drucken / PDF</button>
+        <button class="ghost btn-sm" data-excel="packages">📊 Excel</button>
+      </div>
       <div id="packages-list"></div>
     </main>
 
@@ -189,7 +198,10 @@
       <div id="admin-page-purchases" class="admin-page">
         <h2 class="view-title">Alle Käufe (nach Käufer:in)</h2>
         <input type="text" id="admin-purchases-search" class="search-input" placeholder="🔍 Käufer:in, Spender:in oder Artikel suchen…">
-        <button class="ghost btn-sm print-btn" data-print="purchases">🖨 Drucken / PDF</button>
+        <div class="list-actions">
+          <button class="ghost btn-sm" data-print="purchases">🖨 Drucken / PDF</button>
+          <button class="ghost btn-sm" data-excel="purchases">📊 Excel</button>
+        </div>
         <div id="admin-all-list"></div>
       </div>
 
@@ -215,7 +227,10 @@
         </div>
 
         <input type="text" id="admin-articles-search" class="search-input" placeholder="🔍 Artikel suchen…">
-        <button class="ghost btn-sm print-btn" id="admin-articles-print" data-print="articles">🖨 Drucken / PDF</button>
+        <div class="list-actions" id="admin-articles-actions">
+          <button class="ghost btn-sm" data-print="articles">🖨 Drucken / PDF</button>
+          <button class="ghost btn-sm" data-excel="articles">📊 Excel</button>
+        </div>
         <div id="admin-articles-list"></div>
       </div>
 
@@ -263,19 +278,24 @@
       </div>
     </main>
 
-    <footer id="app-footer">v2.14b · 29. Oktober 2026</footer>
+    <footer id="app-footer">v2.15b · 29. Oktober 2026</footer>
   </div>
 
   <!-- Druckansicht: wird von printList() befüllt, nur beim Drucken sichtbar -->
   <div id="print-sheet" class="print-sheet"></div>
 
-  <!-- iOS-Homescreen-App: PDF wird erzeugt und übers Teilen-Menü geöffnet -->
-  <div id="pdf-dialog" class="pdf-dialog hidden">
+  <!-- Export-Dialog: Excel-Auswahl (diese Liste / alle Daten) und, in der
+       iOS-Homescreen-App, Teilen der erzeugten PDF-/Excel-Datei -->
+  <div id="export-dialog" class="export-dialog hidden">
     <div class="card">
-      <h3>PDF</h3>
-      <p id="pdf-msg" class="muted"></p>
-      <button id="pdf-share-btn" class="hidden">📤 Teilen / Drucken</button>
-      <button id="pdf-close-btn" class="ghost">Schliessen</button>
+      <h3 id="export-title"></h3>
+      <p id="export-msg" class="muted"></p>
+      <div id="export-choice" class="hidden">
+        <button id="excel-list-btn">Diese Liste</button>
+        <button id="excel-all-btn" class="secondary">Alle Daten</button>
+      </div>
+      <button id="export-share-btn" class="hidden">📤 Teilen / Sichern</button>
+      <button id="export-close-btn" class="ghost">Schliessen</button>
     </div>
   </div>
 

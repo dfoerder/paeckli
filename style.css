@@ -368,11 +368,14 @@ code { background: var(--track); padding: 1px 5px; border-radius: 5px; }
 .empty { text-align: center; color: var(--text-light); padding: 24px; }
 
 /* ---------- Drucken / PDF ---------- */
-/* Knopf über jeder druckbaren Liste: klein und rechtsbündig, damit er die
-   Liste nicht verdrängt. */
-button.print-btn {
-  display: block;
-  margin: 0 0 12px auto;
+/* Knöpfe „Drucken / PDF" und „Excel" über jeder Liste: klein und
+   rechtsbündig, damit sie die Liste nicht verdrängen. */
+.list-actions {
+  display: flex;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 12px;
 }
 #print-sheet { display: none; }
 
@@ -410,8 +413,8 @@ button.print-btn {
    Hintergründe sonst standardmässig weg. */
 .print-sheet * { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
 
-/* iOS-Homescreen-App: Hinweis während der PDF-Erzeugung + Teilen-Knopf. */
-.pdf-dialog {
+/* Export-Dialog: Excel-Auswahl, Hinweis während der Erzeugung, Teilen-Knopf. */
+.export-dialog {
   position: fixed;
   inset: 0;
   z-index: 10;
@@ -421,7 +424,7 @@ button.print-btn {
   padding: 16px;
   background: rgba(0, 0, 0, 0.4);
 }
-.pdf-dialog .card { width: 100%; max-width: 400px; margin: 0; }
+.export-dialog .card { width: 100%; max-width: 400px; margin: 0; }
 
 @media print {
   @page { margin: 15mm; }

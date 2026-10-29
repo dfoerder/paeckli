@@ -511,6 +511,19 @@ function renderMine() {
     b.addEventListener('click', () => deletePurchase(b.dataset.del)));
 }
 
+// Suche über Käufer:in-Name, Spender:in ODER Artikelname: passt der Name,
+// bleiben alle Käufe dieser Person sichtbar; passt nur Artikel/Spender:in,
+// nur die passenden Zeilen. Auch vom Excel-Export („Diese Liste") genutzt.
+function filteredAllPurchases() {
+  const query = el('admin-purchases-search').value;
+  return query.trim()
+    ? state.allPurchases.filter((p) =>
+        matches(fullName(p.profiles) || 'Unbekannt', query) ||
+        matches(p.articles?.name || '', query) ||
+        matches(p.donor || '', query))
+    : state.allPurchases;
+}
+
 // Admin: alle Käufe, nach Käufer:in gruppiert (state.allPurchases ist bereits
 // nach Käufer:in-Name sortiert), damit man bei Bedarf Kontakt aufnehmen kann.
 function renderAllPurchases() {
@@ -520,17 +533,7 @@ function renderAllPurchases() {
     return;
   }
 
-  // Suche über Käufer:in-Name, Spender:in ODER Artikelname: passt der Name,
-  // bleiben alle Käufe dieser Person sichtbar; passt nur Artikel/Spender:in,
-  // nur die passenden Zeilen.
-  const query = el('admin-purchases-search').value;
-  const purchases = query.trim()
-    ? state.allPurchases.filter((p) =>
-        matches(fullName(p.profiles) || 'Unbekannt', query) ||
-        matches(p.articles?.name || '', query) ||
-        matches(p.donor || '', query))
-    : state.allPurchases;
-
+  const purchases = filteredAllPurchases();
   if (!purchases.length) {
     box.innerHTML = '<p class="empty">Keine Käufe gefunden.</p>';
     return;
@@ -859,7 +862,7 @@ function renderAdminArticles() {
 
   el('admin-articles-new').classList.toggle('hidden', !!editing);
   el('admin-articles-search').classList.toggle('hidden', !!editing);
-  el('admin-articles-print').classList.toggle('hidden', !!editing);
+  el('admin-articles-actions').classList.toggle('hidden', !!editing);
 
   if (editing) {
     renderArticleEditForm(editing);
@@ -1460,39 +1463,79 @@ function printList(key) {
   window.print();
 }
 
-// iOS-Homescreen-App: #print-sheet per html2pdf.js (html2canvas + jsPDF) als
-// PDF abfotografieren und übers Teilen-Menü anbieten (Drucken, In Dateien
-// sichern, Mail …). Die Bibliothek ist gross (~900 KB) und wird daher erst
-// beim ersten Bedarf geladen. Geteilt wird erst auf einen zweiten Tipp hin:
-// iOS erlaubt navigator.share() nur direkt nach einer Benutzeraktion, und
-// die ist nach der PDF-Erzeugung schon „verbraucht".
-const HTML2PDF_URL = 'https://cdn.jsdelivr.net/npm/html2pdf.js@0.10.3/dist/html2pdf.bundle.min.js';
-let html2pdfLoading = null;
-let pdfFile = null;
-
-function loadHtml2Pdf() {
-  html2pdfLoading ??= new Promise((resolve, reject) => {
+// Externe Bibliotheken (html2pdf.js, SheetJS) sind gross und werden erst beim
+// ersten Bedarf geladen, je URL nur einmal.
+const scriptLoads = {};
+function loadScript(url) {
+  scriptLoads[url] ??= new Promise((resolve, reject) => {
     const s = document.createElement('script');
-    s.src = HTML2PDF_URL;
+    s.src = url;
     s.onload = resolve;
-    s.onerror = () => { html2pdfLoading = null; reject(new Error('PDF-Funktion konnte nicht geladen werden (Internet?).')); };
+    s.onerror = () => { delete scriptLoads[url]; reject(new Error('Funktion konnte nicht geladen werden (Internet?).')); };
     document.head.appendChild(s);
   });
-  return html2pdfLoading;
+  return scriptLoads[url];
 }
 
-function showPdfDialog(text, ready = false) {
-  el('pdf-msg').className = 'muted';
-  el('pdf-msg').textContent = text;
-  el('pdf-share-btn').classList.toggle('hidden', !ready);
-  show('pdf-dialog');
+// Export-Dialog (#export-dialog): Excel-Auswahl, „wird erstellt …" und in
+// der iOS-Homescreen-App der Teilen-Knopf für die fertige Datei.
+let exportFile = null;
+
+function showExportDialog(title, text, { choice = false, ready = false, error = false } = {}) {
+  el('export-title').textContent = title;
+  el('export-msg').className = 'muted' + (error ? ' err' : '');
+  el('export-msg').textContent = text;
+  el('export-choice').classList.toggle('hidden', !choice);
+  el('export-share-btn').classList.toggle('hidden', !ready);
+  show('export-dialog');
 }
+
+const safeFileName = (name, ext) => name.replace(/[\\/:*?"<>|]/g, '') + '.' + ext;
+
+// Fertige Datei ausliefern: in der iOS-Homescreen-App über den Teilen-Knopf
+// (navigator.share() braucht dort einen frischen Tipp, die Erzeugung hat den
+// ursprünglichen schon „verbraucht"), sonst direkt herunterladen.
+function deliverFile(file, title) {
+  exportFile = file;
+  if (navigator.standalone) {
+    showExportDialog(title, 'Datei ist bereit.', { ready: true });
+    return;
+  }
+  downloadFile(file);
+  hide('export-dialog');
+}
+
+function downloadFile(file) {
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(file);
+  a.download = file.name;
+  a.click();
+  setTimeout(() => URL.revokeObjectURL(a.href), 10000);
+}
+
+async function shareExportFile() {
+  if (!exportFile) return;
+  if (navigator.canShare?.({ files: [exportFile] })) {
+    try {
+      await navigator.share({ files: [exportFile], title: exportFile.name });
+    } catch (e) {
+      if (e.name !== 'AbortError') showExportDialog(el('export-title').textContent, 'Fehler beim Teilen: ' + e.message, { ready: true, error: true });
+    }
+    return;
+  }
+  downloadFile(exportFile); // ohne Teilen-Menü
+}
+
+// iOS-Homescreen-App: #print-sheet per html2pdf.js (html2canvas + jsPDF) als
+// PDF abfotografieren und übers Teilen-Menü anbieten (Drucken, In Dateien
+// sichern, Mail …).
+const HTML2PDF_URL = 'https://cdn.jsdelivr.net/npm/html2pdf.js@0.10.3/dist/html2pdf.bundle.min.js';
 
 async function sharePdf(docTitle) {
-  pdfFile = null;
-  showPdfDialog('PDF wird erstellt …');
+  exportFile = null;
+  showExportDialog('PDF', 'PDF wird erstellt …');
   try {
-    await loadHtml2Pdf();
+    await loadScript(HTML2PDF_URL);
     const blob = await html2pdf().set({
       margin: 15,
       image: { type: 'jpeg', quality: 0.95 },
@@ -1500,31 +1543,135 @@ async function sharePdf(docTitle) {
       jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' },
       pagebreak: { mode: ['css', 'legacy'], avoid: ['.item', '.summary', '.deadline'] }
     }).from(`<div class="print-sheet">${el('print-sheet').innerHTML}</div>`).outputPdf('blob');
-    const fileName = docTitle.replace(/[\\/:*?"<>|]/g, '') + '.pdf';
-    pdfFile = new File([blob], fileName, { type: 'application/pdf' });
-    showPdfDialog('PDF ist bereit.', true);
+    deliverFile(new File([blob], safeFileName(docTitle, 'pdf'), { type: 'application/pdf' }), 'PDF');
   } catch (e) {
-    showPdfDialog('Fehler: ' + e.message);
-    el('pdf-msg').className = 'muted err';
+    showExportDialog('PDF', 'Fehler: ' + (e?.message || e), { error: true });
   }
 }
 
-async function sharePdfFile() {
-  if (!pdfFile) return;
-  if (navigator.canShare?.({ files: [pdfFile] })) {
-    try {
-      await navigator.share({ files: [pdfFile], title: pdfFile.name });
-    } catch (e) {
-      if (e.name !== 'AbortError') showPdfDialog('Fehler beim Teilen: ' + e.message, true);
+// ============================================================
+//  Excel-Export (SheetJS)
+// ============================================================
+// Je Liste ein Tabellenblatt mit echten Spalten (Zahlen als Zahlen, Datum als
+// Datum), damit man in Excel sortieren, filtern und rechnen kann.
+// rows(only): only = true → „Diese Liste" (mit Suchfilter bzw. gewähltem
+// Päckli wie in der Anzeige), false → „Alle Daten" (ungefiltert).
+const XLSX_URL = 'https://cdn.sheetjs.com/xlsx-0.20.3/package/dist/xlsx.mini.min.js';
+const XLSX_MIME = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
+
+const byCategoryAndName = (a, b) =>
+  CATEGORIES.indexOf(a.category) - CATEGORIES.indexOf(b.category) ||
+  a.name.localeCompare(b.name, 'de-CH');
+const searchQuery = (id, only) => (only ? el(id).value.trim() : '');
+
+const EXCEL_SHEETS = {
+  overview: {
+    name: 'Einkaufsstand',
+    search: 'overview-search',
+    cols: ['Kategorie', 'Artikel', 'Benötigt', 'Gekauft', 'Fehlt noch', 'Notiz'],
+    rows: (only) => {
+      const q = searchQuery('overview-search', only);
+      return state.status
+        .filter((a) => a.total_needed > 0 && (!q || matches(a.name, q)))
+        .sort(byCategoryAndName)
+        .map((a) => [a.category, a.name, a.total_needed, a.bought, a.still_needed, a.notes || '']);
     }
-    return;
+  },
+  mine: {
+    name: 'Deine Käufe',
+    cols: ['Datum', 'Artikel', 'Anzahl', 'Shop', 'Spender:in', 'Notiz'],
+    rows: () => state.purchases.map((p) =>
+      [new Date(p.created_at), p.articles?.name || '', p.quantity, p.shop || '', p.donor || '', p.note || ''])
+  },
+  packages: {
+    name: 'Päckli',
+    fileTitle: () => 'Päckli ' + (state.parcels.find((p) => p.id === state.pkgParcel)?.name || ''),
+    cols: ['Päckli', 'Artikel', 'Kategorie', 'Menge pro Päckli', 'Anzahl Päckli', 'Total'],
+    rows: (only) => state.parcels
+      .filter((p) => !only || p.id === state.pkgParcel)
+      .flatMap((p) => state.content
+        .filter((c) => c.parcel_id === p.id)
+        .map((c) => ({ c, a: state.articles.find((a) => a.id === c.article_id) }))
+        .filter((x) => x.a)
+        .sort((x, y) => x.a.name.localeCompare(y.a.name, 'de-CH'))
+        .map(({ c, a }) => [p.name, a.name, a.category, c.quantity, p.number, c.quantity * p.number]))
+  },
+  purchases: {
+    name: 'Alle Käufe',
+    search: 'admin-purchases-search',
+    cols: ['Käufer:in', 'E-Mail', 'Telefon', 'Datum', 'Artikel', 'Anzahl', 'Shop', 'Spender:in', 'Notiz'],
+    rows: (only) => (only ? filteredAllPurchases() : state.allPurchases).map((p) => [
+      fullName(p.profiles) || 'Unbekannt', p.profiles?.contact_email || '', p.profiles?.contact_phone || '',
+      new Date(p.created_at), p.articles?.name || '', p.quantity, p.shop || '', p.donor || '', p.note || ''])
+  },
+  articles: {
+    name: 'Artikel',
+    search: 'admin-articles-search',
+    cols: ['Kategorie', 'Artikel', 'Notiz'],
+    rows: (only) => {
+      const q = searchQuery('admin-articles-search', only);
+      return state.articles
+        .filter((a) => !q || matches(a.name, q))
+        .sort(byCategoryAndName)
+        .map((a) => [a.category, a.name, a.notes || '']);
+    }
+  },
+  // Nur in „Alle Daten" für Admins (keine eigene Liste mit Excel-Knopf).
+  people: {
+    name: 'Teilnehmende',
+    cols: ['Vorname', 'Nachname', 'E-Mail', 'Telefon', 'Admin'],
+    rows: () => state.people.map((p) =>
+      [p.first_name || '', p.last_name || '', p.contact_email || '', p.contact_phone || '', p.is_admin ? 'ja' : ''])
   }
-  // Ohne Teilen-Menü: als Datei herunterladen.
-  const a = document.createElement('a');
-  a.href = URL.createObjectURL(pdfFile);
-  a.download = pdfFile.name;
-  a.click();
-  setTimeout(() => URL.revokeObjectURL(a.href), 10000);
+};
+
+let excelKey = null;
+
+// Knopf „📊 Excel": erst fragen, ob nur diese Liste oder alle Daten.
+function openExcelChoice(key) {
+  excelKey = key;
+  exportFile = null;
+  const def = EXCEL_SHEETS[key];
+  const q = def.search && el(def.search).value.trim();
+  showExportDialog('Excel',
+    `„Diese Liste" exportiert ${def.fileTitle?.() || def.name}${q ? ` (nur Treffer der Suche «${q}»)` : ''}. ` +
+    '„Alle Daten" erstellt eine Datei mit einem Tabellenblatt pro Liste.',
+    { choice: true });
+}
+
+function excelSheet(def, only) {
+  const rows = def.rows(only);
+  // Punkte im Datumsformat maskiert: ein nacktes „mm." liest SheetJS als
+  // Sekundenbruchteil („bad second format").
+  const ws = XLSX.utils.aoa_to_sheet([def.cols, ...rows], { dateNF: 'dd\\.mm\\.yyyy' });
+  // Spaltenbreite nach längstem Inhalt (gedeckelt), dazu ein Autofilter.
+  ws['!cols'] = def.cols.map((c, i) => ({
+    wch: Math.min(50, Math.max(c.length, ...rows.map((r) =>
+      r[i] instanceof Date ? 10 : String(r[i] ?? '').length)) + 2)
+  }));
+  ws['!autofilter'] = { ref: ws['!ref'] };
+  return ws;
+}
+
+async function exportExcel(all) {
+  const def = EXCEL_SHEETS[excelKey];
+  showExportDialog('Excel', 'Excel-Datei wird erstellt …');
+  try {
+    await loadScript(XLSX_URL);
+    const keys = all
+      ? ['overview', 'mine', 'packages', ...(state.profile.is_admin ? ['purchases', 'articles', 'people'] : [])]
+      : [excelKey];
+    const wb = XLSX.utils.book_new();
+    keys.forEach((k) => XLSX.utils.book_append_sheet(wb, excelSheet(EXCEL_SHEETS[k], !all), EXCEL_SHEETS[k].name));
+    const campaign = state.campaign?.title;
+    const title = all
+      ? [campaign || 'Weihnachtspäckli', 'alle Daten'].join(' – ')
+      : [def.fileTitle?.() || def.name, campaign].filter(Boolean).join(' – ');
+    const buf = XLSX.write(wb, { bookType: 'xlsx', type: 'array' });
+    deliverFile(new File([buf], safeFileName(title, 'xlsx'), { type: XLSX_MIME }), 'Excel');
+  } catch (e) {
+    showExportDialog('Excel', 'Fehler: ' + (e?.message || e), { error: true });
+  }
 }
 
 // ============================================================
@@ -1567,8 +1714,12 @@ function wireEvents() {
     b.addEventListener('click', () => setAdminPage(b.dataset.adminPage)));
   $$('[data-print]').forEach((b) =>
     b.addEventListener('click', () => printList(b.dataset.print)));
-  el('pdf-share-btn')?.addEventListener('click', sharePdfFile);
-  el('pdf-close-btn')?.addEventListener('click', () => { hide('pdf-dialog'); pdfFile = null; });
+  $$('[data-excel]').forEach((b) =>
+    b.addEventListener('click', () => openExcelChoice(b.dataset.excel)));
+  el('excel-list-btn')?.addEventListener('click', () => exportExcel(false));
+  el('excel-all-btn')?.addEventListener('click', () => exportExcel(true));
+  el('export-share-btn')?.addEventListener('click', shareExportFile);
+  el('export-close-btn')?.addEventListener('click', () => { hide('export-dialog'); exportFile = null; });
 
   $$('#tabs .tab').forEach((t) =>
     t.addEventListener('click', () => showView(t.dataset.view)));

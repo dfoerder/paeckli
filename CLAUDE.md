@@ -168,11 +168,26 @@ für den PDF-Dateinamen). Die Druck-CSS (`@media print`) greift nur mit
 
 **iOS-Homescreen-App** (`navigator.standalone`): dort tut `window.print()`
 nichts. Stattdessen erzeugt `sharePdf()` mit html2pdf.js (per CDN, erst bei
-Bedarf geladen, ~900 KB) ein PDF aus `#print-sheet`. Ein Dialog (`#pdf-dialog`)
-bietet es dann per „Teilen / Drucken" übers iOS-Teilen-Menü an. Es braucht
-diesen zweiten Tipp, weil `navigator.share()` eine frische Benutzeraktion
-verlangt. Das Druck-Aussehen hängt deshalb an der Klasse `.print-sheet` und
-gilt auch auf dem Bildschirm, nicht nur in `@media print`.
+Bedarf über `loadScript()` geladen, ~900 KB) ein PDF aus `#print-sheet`. Der
+Export-Dialog (`#export-dialog`) bietet es dann per „Teilen / Sichern" übers
+iOS-Teilen-Menü an (`deliverFile()`). Es braucht diesen zweiten Tipp, weil
+`navigator.share()` eine frische Benutzeraktion verlangt. Das Druck-Aussehen
+hängt deshalb an der Klasse `.print-sheet` und gilt auch auf dem Bildschirm,
+nicht nur in `@media print`.
+
+### Excel-Export
+
+Knopf „📊 Excel" (`[data-excel]`) neben jedem Drucken-Knopf. Er öffnet im
+Export-Dialog die Auswahl **Diese Liste** (mit Suchfilter bzw. gewähltem
+Päckli wie in der Anzeige) oder **Alle Daten** (ungefiltert, ein Tabellenblatt
+pro Liste; Admins zusätzlich Alle Käufe, Artikel und Teilnehmende). Die
+Tabellenblätter sind in `EXCEL_SHEETS` definiert (`cols` + `rows(only)`) und
+werden aus `state` gebaut, nicht aus dem DOM. Zahlen bleiben Zahlen, Daten
+sind echte Excel-Daten. Erzeugt wird die Datei mit SheetJS (`xlsx.mini`, per
+`cdn.sheetjs.com`, erst bei Bedarf geladen, ~280 KB). Am Computer wird sie
+heruntergeladen, in der iOS-Homescreen-App wie das PDF geteilt. Im
+Datumsformat die Punkte maskieren (`dd\.mm\.yyyy`), sonst wirft SheetJS
+„bad second format".
 
 ### Artikel zu Päckli hinzufügen (Admin > Päckli-Inhalt)
 
