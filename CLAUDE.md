@@ -166,6 +166,14 @@ sichern" im Druckdialog. `document.title` wird dabei kurz ersetzt (Vorschlag
 für den PDF-Dateinamen). Die Druck-CSS (`@media print`) greift nur mit
 `body.printing`, Drucken übers Browser-Menü druckt die normale Seite.
 
+**iOS-Homescreen-App** (`navigator.standalone`): dort tut `window.print()`
+nichts. Stattdessen erzeugt `sharePdf()` mit html2pdf.js (per CDN, erst bei
+Bedarf geladen, ~900 KB) ein PDF aus `#print-sheet`. Ein Dialog (`#pdf-dialog`)
+bietet es dann per „Teilen / Drucken" übers iOS-Teilen-Menü an. Es braucht
+diesen zweiten Tipp, weil `navigator.share()` eine frische Benutzeraktion
+verlangt. Das Druck-Aussehen hängt deshalb an der Klasse `.print-sheet` und
+gilt auch auf dem Bildschirm, nicht nur in `@media print`.
+
 ### Artikel zu Päckli hinzufügen (Admin > Päckli-Inhalt)
 
 `addArticle()` verwendet einen bestehenden Artikel mit gleichem Namen wieder

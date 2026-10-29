@@ -263,11 +263,21 @@
       </div>
     </main>
 
-    <footer id="app-footer">v2.13b · 29. Oktober 2026</footer>
+    <footer id="app-footer">v2.14b · 29. Oktober 2026</footer>
   </div>
 
   <!-- Druckansicht: wird von printList() befüllt, nur beim Drucken sichtbar -->
-  <div id="print-sheet"></div>
+  <div id="print-sheet" class="print-sheet"></div>
+
+  <!-- iOS-Homescreen-App: PDF wird erzeugt und übers Teilen-Menü geöffnet -->
+  <div id="pdf-dialog" class="pdf-dialog hidden">
+    <div class="card">
+      <h3>PDF</h3>
+      <p id="pdf-msg" class="muted"></p>
+      <button id="pdf-share-btn" class="hidden">📤 Teilen / Drucken</button>
+      <button id="pdf-close-btn" class="ghost">Schliessen</button>
+    </div>
+  </div>
 
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script src="config.js"></script>

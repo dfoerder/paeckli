@@ -376,6 +376,53 @@ button.print-btn {
 }
 #print-sheet { display: none; }
 
+/* Aussehen der Druckansicht. Gilt nicht nur in @media print, sondern auch
+   auf dem Bildschirm, weil die PDF-Erzeugung in der iOS-Homescreen-App
+   (sharePdf) die Ansicht als Bildschirm-Darstellung abfotografiert. */
+.print-sheet { background: #fff; color: var(--text); font-size: 14px; }
+.print-sheet h1 { font-size: 21px; color: var(--primary); margin-bottom: 2pt; }
+.print-meta { color: var(--text-light); font-size: 12px; margin-bottom: 12pt; }
+.print-sheet button, .print-sheet .row-actions { display: none !important; }
+
+/* Kompakte Zeilen statt Karten, nichts über Seitenumbrüche zerreissen. */
+.print-sheet .item {
+  border: 0;
+  border-bottom: 1px solid var(--border);
+  border-radius: 0;
+  padding: 5pt 0;
+  margin: 0;
+  break-inside: avoid;
+}
+.print-sheet .item .name { white-space: normal; overflow: visible; }
+.print-sheet .category-heading { margin: 14pt 0 4pt; break-after: avoid; }
+.print-sheet .buyer-group { break-inside: avoid-page; margin-bottom: 14pt; }
+.print-sheet .buyer-name { margin: 0 0 2pt; break-after: avoid; }
+.print-sheet .buyer-contact { margin: 0 0 4pt; }
+.print-sheet .summary {
+  display: flex;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 8pt;
+  margin-bottom: 10pt;
+}
+.print-sheet .bar { height: 5px; margin-top: 4pt; }
+/* Farben (Balken, Pillen, Stichtag-Banner) auch drucken – Browser lassen
+   Hintergründe sonst standardmässig weg. */
+.print-sheet * { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+
+/* iOS-Homescreen-App: Hinweis während der PDF-Erzeugung + Teilen-Knopf. */
+.pdf-dialog {
+  position: fixed;
+  inset: 0;
+  z-index: 10;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+  background: rgba(0, 0, 0, 0.4);
+}
+.pdf-dialog .card { width: 100%; max-width: 400px; margin: 0; }
+
 @media print {
   @page { margin: 15mm; }
   body {
@@ -383,42 +430,11 @@ button.print-btn {
     background: #fff;
     padding: 0;
     min-height: 0;
-    font-size: 11pt;
   }
   /* Nur wenn printList() die Druckansicht befüllt hat – sonst (Drucken übers
      Browser-Menü) wird ganz normal die aktuelle Seite gedruckt. */
   body.printing #app { display: none; }
   body.printing #print-sheet { display: block; }
-
-  #print-sheet h1 { font-size: 16pt; color: var(--primary); margin-bottom: 2pt; }
-  .print-meta { color: var(--text-light); font-size: 9pt; margin-bottom: 12pt; }
-  #print-sheet button, #print-sheet .row-actions { display: none !important; }
-
-  /* Kompakte Zeilen statt Karten, nichts über Seitenumbrüche zerreissen. */
-  #print-sheet .item {
-    border: 0;
-    border-bottom: 1px solid var(--border);
-    border-radius: 0;
-    padding: 5pt 0;
-    margin: 0;
-    break-inside: avoid;
-  }
-  #print-sheet .item .name { white-space: normal; overflow: visible; }
-  #print-sheet .category-heading { margin: 14pt 0 4pt; break-after: avoid; }
-  #print-sheet .buyer-group { break-inside: avoid-page; margin-bottom: 14pt; }
-  #print-sheet .buyer-name { margin: 0 0 2pt; break-after: avoid; }
-  #print-sheet .buyer-contact { margin: 0 0 4pt; }
-  #print-sheet .summary {
-    display: flex;
-    border: 1px solid var(--border);
-    border-radius: var(--radius);
-    padding: 8pt;
-    margin-bottom: 10pt;
-  }
-  #print-sheet .bar { height: 5px; margin-top: 4pt; }
-  /* Farben (Balken, Pillen, Stichtag-Banner) auch drucken – Browser lassen
-     Hintergründe sonst standardmässig weg. */
-  #print-sheet * { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
 }
 
 /* ---------- Fusszeile: App-Version ---------- */

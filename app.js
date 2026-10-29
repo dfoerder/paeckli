@@ -1444,15 +1444,87 @@ function printList(key) {
     <h1>${esc(title)}</h1>
     <p class="print-meta">${meta.map(esc).join(' · ')}</p>
     ${parts.map((id) => `<div class="print-part ${el(id).className}">${el(id).innerHTML}</div>`).join('')}`;
+  const docTitle = [title, state.campaign?.title].filter(Boolean).join(' – ');
+
+  // In der iOS-Homescreen-App (navigator.standalone gibt es nur auf iOS)
+  // tut window.print() schlicht nichts – dort selbst ein PDF erzeugen.
+  if (navigator.standalone) { sharePdf(docTitle); return; }
 
   const oldTitle = document.title;
-  document.title = [title, state.campaign?.title].filter(Boolean).join(' – ');
+  document.title = docTitle;
   document.body.classList.add('printing');
   window.addEventListener('afterprint', () => {
     document.body.classList.remove('printing');
     document.title = oldTitle;
   }, { once: true });
   window.print();
+}
+
+// iOS-Homescreen-App: #print-sheet per html2pdf.js (html2canvas + jsPDF) als
+// PDF abfotografieren und übers Teilen-Menü anbieten (Drucken, In Dateien
+// sichern, Mail …). Die Bibliothek ist gross (~900 KB) und wird daher erst
+// beim ersten Bedarf geladen. Geteilt wird erst auf einen zweiten Tipp hin:
+// iOS erlaubt navigator.share() nur direkt nach einer Benutzeraktion, und
+// die ist nach der PDF-Erzeugung schon „verbraucht".
+const HTML2PDF_URL = 'https://cdn.jsdelivr.net/npm/html2pdf.js@0.10.3/dist/html2pdf.bundle.min.js';
+let html2pdfLoading = null;
+let pdfFile = null;
+
+function loadHtml2Pdf() {
+  html2pdfLoading ??= new Promise((resolve, reject) => {
+    const s = document.createElement('script');
+    s.src = HTML2PDF_URL;
+    s.onload = resolve;
+    s.onerror = () => { html2pdfLoading = null; reject(new Error('PDF-Funktion konnte nicht geladen werden (Internet?).')); };
+    document.head.appendChild(s);
+  });
+  return html2pdfLoading;
+}
+
+function showPdfDialog(text, ready = false) {
+  el('pdf-msg').className = 'muted';
+  el('pdf-msg').textContent = text;
+  el('pdf-share-btn').classList.toggle('hidden', !ready);
+  show('pdf-dialog');
+}
+
+async function sharePdf(docTitle) {
+  pdfFile = null;
+  showPdfDialog('PDF wird erstellt …');
+  try {
+    await loadHtml2Pdf();
+    const blob = await html2pdf().set({
+      margin: 15,
+      image: { type: 'jpeg', quality: 0.95 },
+      html2canvas: { scale: 2, backgroundColor: '#ffffff' },
+      jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' },
+      pagebreak: { mode: ['css', 'legacy'], avoid: ['.item', '.summary', '.deadline'] }
+    }).from(`<div class="print-sheet">${el('print-sheet').innerHTML}</div>`).outputPdf('blob');
+    const fileName = docTitle.replace(/[\\/:*?"<>|]/g, '') + '.pdf';
+    pdfFile = new File([blob], fileName, { type: 'application/pdf' });
+    showPdfDialog('PDF ist bereit.', true);
+  } catch (e) {
+    showPdfDialog('Fehler: ' + e.message);
+    el('pdf-msg').className = 'muted err';
+  }
+}
+
+async function sharePdfFile() {
+  if (!pdfFile) return;
+  if (navigator.canShare?.({ files: [pdfFile] })) {
+    try {
+      await navigator.share({ files: [pdfFile], title: pdfFile.name });
+    } catch (e) {
+      if (e.name !== 'AbortError') showPdfDialog('Fehler beim Teilen: ' + e.message, true);
+    }
+    return;
+  }
+  // Ohne Teilen-Menü: als Datei herunterladen.
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(pdfFile);
+  a.download = pdfFile.name;
+  a.click();
+  setTimeout(() => URL.revokeObjectURL(a.href), 10000);
 }
 
 // ============================================================
@@ -1495,6 +1567,8 @@ function wireEvents() {
     b.addEventListener('click', () => setAdminPage(b.dataset.adminPage)));
   $$('[data-print]').forEach((b) =>
     b.addEventListener('click', () => printList(b.dataset.print)));
+  el('pdf-share-btn')?.addEventListener('click', sharePdfFile);
+  el('pdf-close-btn')?.addEventListener('click', () => { hide('pdf-dialog'); pdfFile = null; });
 
   $$('#tabs .tab').forEach((t) =>
     t.addEventListener('click', () => showView(t.dataset.view)));
